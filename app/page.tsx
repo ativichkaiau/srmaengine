@@ -1,181 +1,394 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-import ThemeToggle from '../components/ThemeToggle'; 
+import ThemeToggle from '../components/ThemeToggle';
 
 type SmartMatch = {
   word: string;
   sentence: string;
-  isNegated: boolean; 
+  isNegated: boolean;
 };
+
+type SentenceBreakdown = {
+  index: number;
+  text: string;
+  isNegated: boolean;
+  positives: string[];
+  negatives: string[];
+};
+
+type WordCount = {
+  word: string;
+  count: number;
+  polarity: 'positive' | 'negative';
+};
+
+type ScanResult = {
+  decision: string;
+  sentenceCount: number;
+  tokenCount: number;
+  positives: SmartMatch[];
+  negatives: SmartMatch[];
+  sentences: SentenceBreakdown[];
+  wordCounts: WordCount[];
+};
+
+// Common English + academic filler stopwords stripped before keyword extraction.
+const STOPWORDS = new Set([
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'also', 'am', 'an', 'and',
+  'any', 'are', 'as', 'at', 'be', 'because', 'been', 'before', 'being', 'below', 'between',
+  'both', 'but', 'by', 'can', 'cannot', 'could', 'did', 'do', 'does', 'doing', 'done',
+  'down', 'during', 'each', 'few', 'for', 'from', 'further', 'had', 'has', 'have', 'having',
+  'he', 'her', 'here', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'however', 'i',
+  'if', 'in', 'into', 'is', 'it', 'its', 'itself', 'just', 'me', 'more', 'most', 'my',
+  'myself', 'no', 'nor', 'not', 'now', 'of', 'off', 'on', 'once', 'only', 'or', 'other',
+  'our', 'ours', 'ourselves', 'out', 'over', 'own', 'same', 'she', 'should', 'so', 'some',
+  'such', 'than', 'that', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there',
+  'these', 'they', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very',
+  'was', 'we', 'were', 'what', 'when', 'where', 'which', 'while', 'who', 'whom', 'why',
+  'will', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves',
+  'study', 'studies', 'group', 'groups', 'result', 'results', 'using', 'used', 'use',
+  'method', 'methods', 'conclusion', 'conclusions', 'background', 'objective', 'objectives',
+  'aim', 'aims', 'data', 'analysis', 'patients', 'patient', 'compared', 'versus', 'among',
+  'within', 'two', 'one', 'three', 'four', 'five', 'may', 'were', 'was', 'between', 'total',
+  'mean', 'median', 'showed', 'found', 'including', 'included', 'associated', 'significant',
+  'significantly', 'respectively', 'overall', 'based', 'performed', 'reported', 'assessed',
+]);
+
+function extractCandidates(text: string, exclude: Set<string>): string[] {
+  const cleaned = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return [];
+
+  const tokens = cleaned.split(' ').filter(Boolean);
+
+  const score = new Map<string, number>();
+
+  const isUseful = (t: string) =>
+    t.length >= 3 && !STOPWORDS.has(t) && !/^[\d-]+$/.test(t);
+
+  // Unigrams.
+  for (const tok of tokens) {
+    if (!isUseful(tok)) continue;
+    score.set(tok, (score.get(tok) ?? 0) + 1);
+  }
+
+  // Bigrams (multi-word clinical terms are more specific, so weight them up).
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const a = tokens[i];
+    const b = tokens[i + 1];
+    if (!isUseful(a) || !isUseful(b)) continue;
+    const bigram = `${a} ${b}`;
+    score.set(bigram, (score.get(bigram) ?? 0) + 1.6);
+  }
+
+  return Array.from(score.entries())
+    .filter(([word, s]) => s >= 1.6 || (score.get(word) ?? 0) >= 2 || word.includes(' ') === false)
+    .filter(([word]) => !exclude.has(word))
+    .sort((x, y) => y[1] - x[1] || y[0].length - x[0].length)
+    .slice(0, 24)
+    .map(([word]) => word);
+}
 
 export default function SRMATelemetryPage() {
   // --- ENGINE STATE ---
   const [inputText, setInputText] = useState('');
-  const [decision, setDecision] = useState<string | null>(null);
+  const [scan, setScan] = useState<ScanResult | null>(null);
   const [isScanned, setIsScanned] = useState(false);
-  
-  const [smartPositives, setSmartPositives] = useState<SmartMatch[]>([]);
-  const [smartNegatives, setSmartNegatives] = useState<SmartMatch[]>([]);
 
-  // --- CONFIGURATION STATE ---
+  // Drill-down disclosure tiers.
+  const [showSentences, setShowSentences] = useState(false);
+  const [showWords, setShowWords] = useState(false);
+
+  // --- CONFIGURATION STATE (starts empty — no placeholder dictionaries) ---
+  const [positiveKeywords, setPositiveKeywords] = useState<string[]>([]);
+  const [negativeKeywords, setNegativeKeywords] = useState<string[]>([]);
+
   const [isEditingProtocol, setIsEditingProtocol] = useState(false);
+  const [posInput, setPosInput] = useState('');
+  const [negInput, setNegInput] = useState('');
 
-  // THE EXPANDED PICO INCLUSION DICTIONARY
-  const defaultPositives = [
-    'women', 'woman', 'female', 'females', 'postmenopausal', 'post-menopausal', 'postmenopause', 
-    'post-menopause', 'perimenopausal', 'peri-menopausal', 'perimenopause', 'climacteric', 
-    'menopausal transition', 'local estrogen', 'local oestrogen', 'local vaginal let', 
-    'topical let', 'intravaginal estrogen', 'vaginal oestrogen', 'vaginal delivery system', 
-    'vaginal administration', 'estradiol', 'oestradiol', 'estriol', 'oestriol', 
-    'conjugated equine estrogen', 'cee', 'conjugated estrogen', 'conjugated estrogens', 
-    'conjugated oestrogen', 'conjugated oestrogens', 'promestriene', 'estrone', 'cream', 
-    'creams', 'ring', 'rings', 'tablet', 'tablets', 'capsule', 'capsules', 'ovule', 'ovules', 
-    'pessary', 'pessaries', 'insert', 'inserts', 'gel', 'gels', 'recurrent', 'recurrence', 
-    'recurring', 'repeat', 'repeated', 'repeating', 'persistent', 'chronic', 'relapse', 
-    'relapsing', 'reinfection', 'urinary tract infection', 'urinary tract infections', 
-    'uti', 'utis', 'ruti', 'rutis', 'cystitis', 'bacteriuria', 'bladder infection', 
-    'bladder infections', 'luti', 'lutis', 'ruluti', 'rulutis'
-  ];
-
-  // THE INTERFERENCE FILTER (Strict Exclusions based on PICO)
-  const defaultNegatives = [
-    'oral', 'systemic', 'transdermal', 'patch', 'patches', 'diabetes', 'diabetic', 'dm', 
-    'type 2 dm', 't2dm', 'hba1c', 'glucose', 'catheter', 'catheters', 'indwelling', 'prolapse', 
-    'pelvic organ prolapse', 'cystocele', 'rectocele', 'urogenital abnormalities', 
-    'structural abnormalities', 'surgery', 'post-operative', 'oncology', 'cancer', 
-    'breast cancer', 'endometrial cancer', 'male', 'men', 'man', 'pediatric', 'children', 
-    'adolescent', 'girls', 'pregnancy', 'pregnant', 'lactation', 'breastfeeding', 'animal', 
-    'animals', 'rat', 'rats', 'mouse', 'mice', 'murine', 'rabbit', 'in vitro', 'in-vitro', 
-    'lab', 'laboratory', 'cell line', 'review', 'systematic review', 'meta-analysis', 
-    'meta analysis', 'case report', 'case series', 'editorial', 'letter', 'comment', 
-    'abstract only', 'antibiotic', 'antibiotics', 'nitrofurantoin', 'fosfomycin', 
-    'trimethoprim', 'prophylaxis'
-  ];
+  const [dismissed, setDismissed] = useState<string[]>([]);
 
   // Heuristic Negation Dictionary
   const negationTriggers = [
-    'exclud', 'without', 'no ', 'exception', 'ruled out', 'history of', 'omitted'
+    'exclud', 'without', 'no ', 'exception', 'ruled out', 'history of', 'omitted',
   ];
 
-  const [positiveKeywords, setPositiveKeywords] = useState<string[]>(defaultPositives);
-  const [negativeKeywords, setNegativeKeywords] = useState<string[]>(defaultNegatives);
+  // --- AUTO-SUGGEST: derived from the pasted text ---
+  const suggestions = useMemo(() => {
+    const exclude = new Set<string>([
+      ...positiveKeywords,
+      ...negativeKeywords,
+      ...dismissed,
+    ]);
+    return extractCandidates(inputText, exclude);
+  }, [inputText, positiveKeywords, negativeKeywords, dismissed]);
 
-  const [posInput, setPosInput] = useState(defaultPositives.join(', '));
-  const [negInput, setNegInput] = useState(defaultNegatives.join(', '));
+  const resetResults = () => {
+    setScan(null);
+    setIsScanned(false);
+    setShowSentences(false);
+    setShowWords(false);
+  };
 
-  // --- PROTOCOL HANDLER ---
+  const classify = (word: string, polarity: 'positive' | 'negative') => {
+    const w = word.trim().toLowerCase();
+    if (!w) return;
+    if (polarity === 'positive') {
+      setPositiveKeywords((prev) => {
+        if (prev.includes(w)) return prev;
+        const next = [...prev, w];
+        setPosInput(next.join(', '));
+        return next;
+      });
+      setNegativeKeywords((prev) => {
+        if (!prev.includes(w)) return prev;
+        const next = prev.filter((k) => k !== w);
+        setNegInput(next.join(', '));
+        return next;
+      });
+    } else {
+      setNegativeKeywords((prev) => {
+        if (prev.includes(w)) return prev;
+        const next = [...prev, w];
+        setNegInput(next.join(', '));
+        return next;
+      });
+      setPositiveKeywords((prev) => {
+        if (!prev.includes(w)) return prev;
+        const next = prev.filter((k) => k !== w);
+        setPosInput(next.join(', '));
+        return next;
+      });
+    }
+    resetResults();
+  };
+
+  const removeKeyword = (word: string, polarity: 'positive' | 'negative') => {
+    if (polarity === 'positive') {
+      setPositiveKeywords((prev) => {
+        const next = prev.filter((k) => k !== word);
+        setPosInput(next.join(', '));
+        return next;
+      });
+    } else {
+      setNegativeKeywords((prev) => {
+        const next = prev.filter((k) => k !== word);
+        setNegInput(next.join(', '));
+        return next;
+      });
+    }
+    resetResults();
+  };
+
+  const dismissSuggestion = (word: string) => {
+    setDismissed((prev) => (prev.includes(word) ? prev : [...prev, word]));
+  };
+
+  // --- PROTOCOL HANDLER (manual editor stays as a power-user fallback) ---
   const handleApplyProtocol = () => {
-    const parseKeywords = (raw: string) => 
-      raw.split(',')
-         .map(w => w.trim().toLowerCase())
-         .filter(w => w.length > 0);
+    const parseKeywords = (raw: string) =>
+      raw
+        .split(',')
+        .map((w) => w.trim().toLowerCase())
+        .filter((w) => w.length > 0);
 
     setPositiveKeywords(parseKeywords(posInput));
     setNegativeKeywords(parseKeywords(negInput));
     setIsEditingProtocol(false);
-    setDecision(null); 
-    setIsScanned(false);
+    resetResults();
   };
 
-  // --- SMART ENGINE LOGIC ---
+  // --- HIERARCHICAL ENGINE: abstract -> sentences -> words ---
   const handleScan = () => {
     if (!inputText.trim()) return;
 
-    const normalizedText = inputText.replace(/\s+/g, ' ');
-    const sentences = normalizedText.match(/[^.!?]+[.!?]+/g) || [normalizedText];
-
-    const currentPositives: Map<string, SmartMatch> = new Map();
-    const currentNegatives: Map<string, SmartMatch> = new Map();
+    const normalizedText = inputText.replace(/\s+/g, ' ').trim();
+    const rawSentences = normalizedText.match(/[^.!?]+[.!?]+/g) || [normalizedText];
+    const sentences = rawSentences.map((s) => s.trim()).filter(Boolean);
+    const tokenCount = normalizedText.split(' ').filter(Boolean).length;
 
     const isSentenceNegated = (sentence: string) => {
-      const lowerSentence = sentence.toLowerCase();
-      return negationTriggers.some(trigger => lowerSentence.includes(trigger));
+      const lower = sentence.toLowerCase();
+      return negationTriggers.some((trigger) => lower.includes(trigger));
     };
 
-    sentences.forEach(sentence => {
+    const buildRegex = (word: string) =>
+      new RegExp(`\\b${word.replace(/\s+/g, '\\s+')}\\b`, 'gi');
+
+    const abstractPositives = new Map<string, SmartMatch>();
+    const abstractNegatives = new Map<string, SmartMatch>();
+    const sentenceBreakdown: SentenceBreakdown[] = [];
+
+    sentences.forEach((sentence, index) => {
       const isNegatedContext = isSentenceNegated(sentence);
+      const posHere: string[] = [];
+      const negHere: string[] = [];
 
-      positiveKeywords.forEach(word => {
-        const safeWord = word.replace(/\s+/g, '\\s+');
-        const regex = new RegExp(`\\b${safeWord}\\b`, 'gi');
-        if (regex.test(sentence) && !currentPositives.has(word)) {
-          currentPositives.set(word, { word, sentence: sentence.trim(), isNegated: false });
+      positiveKeywords.forEach((word) => {
+        if (buildRegex(word).test(sentence)) {
+          posHere.push(word);
+          if (!abstractPositives.has(word)) {
+            abstractPositives.set(word, { word, sentence, isNegated: false });
+          }
         }
       });
 
-      negativeKeywords.forEach(word => {
-        const safeWord = word.replace(/\s+/g, '\\s+');
-        const regex = new RegExp(`\\b${safeWord}\\b`, 'gi');
-        if (regex.test(sentence) && !currentNegatives.has(word)) {
-          currentNegatives.set(word, { word, sentence: sentence.trim(), isNegated: isNegatedContext });
+      negativeKeywords.forEach((word) => {
+        if (buildRegex(word).test(sentence)) {
+          negHere.push(word);
+          if (!abstractNegatives.has(word)) {
+            abstractNegatives.set(word, { word, sentence, isNegated: isNegatedContext });
+          }
         }
       });
+
+      if (posHere.length > 0 || negHere.length > 0) {
+        sentenceBreakdown.push({
+          index,
+          text: sentence,
+          isNegated: isNegatedContext,
+          positives: posHere,
+          negatives: negHere,
+        });
+      }
     });
 
-    const posArray = Array.from(currentPositives.values());
-    const negArray = Array.from(currentNegatives.values());
+    // Word-level: total occurrences of each matched keyword across the abstract.
+    const wordCounts: WordCount[] = [];
+    const countAll = (word: string) =>
+      (normalizedText.match(buildRegex(word)) || []).length;
 
-    setSmartPositives(posArray);
-    setSmartNegatives(negArray);
-    setIsScanned(true);
+    Array.from(abstractPositives.keys()).forEach((word) => {
+      wordCounts.push({ word, count: countAll(word), polarity: 'positive' });
+    });
+    Array.from(abstractNegatives.keys()).forEach((word) => {
+      wordCounts.push({ word, count: countAll(word), polarity: 'negative' });
+    });
+    wordCounts.sort((a, b) => b.count - a.count);
 
-    const hardExclusions = negArray.filter(n => !n.isNegated).length;
-    const negatedExclusions = negArray.filter(n => n.isNegated).length;
+    const posArray = Array.from(abstractPositives.values());
+    const negArray = Array.from(abstractNegatives.values());
 
-    if (hardExclusions > 0) {
-      setDecision('EXCLUDE');
+    const hardExclusions = negArray.filter((n) => !n.isNegated).length;
+    const negatedExclusions = negArray.filter((n) => n.isNegated).length;
+
+    let decision: string;
+    if (positiveKeywords.length === 0 && negativeKeywords.length === 0) {
+      decision = 'NO_CRITERIA';
+    } else if (hardExclusions > 0) {
+      decision = 'EXCLUDE';
     } else if (negatedExclusions > 0) {
-      setDecision('UNCLEAR'); 
+      decision = 'UNCLEAR';
     } else if (posArray.length > 0) {
-      setDecision('INCLUDE / MAYBE');
+      decision = 'INCLUDE / MAYBE';
     } else {
-      setDecision('UNCLEAR');
+      decision = 'UNCLEAR';
     }
+
+    setScan({
+      decision,
+      sentenceCount: sentences.length,
+      tokenCount,
+      positives: posArray,
+      negatives: negArray,
+      sentences: sentenceBreakdown,
+      wordCounts,
+    });
+    setShowSentences(false);
+    setShowWords(false);
+    setIsScanned(true);
   };
 
   const handleClear = () => {
     setInputText('');
-    setDecision(null);
-    setSmartPositives([]);
-    setSmartNegatives([]);
-    setIsScanned(false);
+    resetResults();
   };
 
-  const getHighlightedText = () => {
-    if (!inputText) return null;
-    const allKeywords = [...positiveKeywords, ...negativeKeywords].sort((a, b) => b.length - a.length); 
-    if (allKeywords.length === 0) return inputText;
+  const getHighlightedText = (text: string) => {
+    if (!text) return null;
+    const allKeywords = [...positiveKeywords, ...negativeKeywords].sort(
+      (a, b) => b.length - a.length
+    );
+    if (allKeywords.length === 0) return text;
 
-    const regexPattern = allKeywords.map(kw => kw.replace(/\s+/g, '\\s+')).join('|');
+    const regexPattern = allKeywords
+      .map((kw) => kw.replace(/\s+/g, '\\s+'))
+      .join('|');
     const regex = new RegExp(`\\b(${regexPattern})\\b`, 'gi');
-    
-    const parts = inputText.split(regex);
+    const parts = text.split(regex);
 
     return parts.map((part, i) => {
       if (!part) return null;
       const lowerPart = part.toLowerCase().replace(/\s+/g, ' ');
-      
+
       if (positiveKeywords.includes(lowerPart)) {
-        return <span key={i} className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 font-bold px-1 rounded border border-emerald-200 dark:border-emerald-500/30 transition-colors">{part}</span>;
+        return (
+          <span
+            key={i}
+            className="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 font-bold px-1 rounded border border-emerald-200 dark:border-emerald-500/30 transition-colors"
+          >
+            {part}
+          </span>
+        );
       } else if (negativeKeywords.includes(lowerPart)) {
-        const isNegated = smartNegatives.some(n => n.word === lowerPart && n.isNegated);
+        const isNegated = scan?.negatives.some(
+          (n) => n.word === lowerPart && n.isNegated
+        );
         if (isNegated) {
-          return <span key={i} className="bg-yellow-100 dark:bg-yellow-500/20 text-yellow-800 dark:text-yellow-400 font-bold px-1 rounded border border-yellow-200 dark:border-yellow-500/30 cursor-help transition-colors" title="Context implies this exclusion was controlled for.">{part}</span>;
+          return (
+            <span
+              key={i}
+              className="bg-yellow-100 dark:bg-yellow-500/20 text-yellow-800 dark:text-yellow-400 font-bold px-1 rounded border border-yellow-200 dark:border-yellow-500/30 cursor-help transition-colors"
+              title="Context implies this exclusion was controlled for."
+            >
+              {part}
+            </span>
+          );
         }
-        return <span key={i} className="bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-400 font-bold px-1 rounded border border-red-200 dark:border-red-500/30 transition-colors">{part}</span>;
+        return (
+          <span
+            key={i}
+            className="bg-red-100 dark:bg-red-500/20 text-red-800 dark:text-red-400 font-bold px-1 rounded border border-red-200 dark:border-red-500/30 transition-colors"
+          >
+            {part}
+          </span>
+        );
       }
       return <span key={i}>{part}</span>;
     });
   };
 
+  const decision = scan?.decision ?? null;
+
+  const decisionBannerClass =
+    decision === 'EXCLUDE'
+      ? 'bg-red-50/80 dark:bg-red-950/30 border-red-200 dark:border-red-500/50 text-red-600 dark:text-red-500 shadow-[0_4px_20px_rgba(220,38,38,0.05)] dark:shadow-[0_0_20px_rgba(239,68,68,0.15)]'
+      : decision === 'INCLUDE / MAYBE'
+      ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-[0_4px_20px_rgba(16,185,129,0.05)] dark:shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+      : 'bg-yellow-50/80 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-500/50 text-yellow-600 dark:text-yellow-500 shadow-[0_4px_20px_rgba(234,179,8,0.05)] dark:shadow-[0_0_20px_rgba(234,179,8,0.15)]';
+
+  const decisionLabel =
+    decision === 'EXCLUDE'
+      ? '🚩 EXCLUDE (Criteria Violation)'
+      : decision === 'INCLUDE / MAYBE'
+      ? '🟩 INCLUDE / MAYBE (Passes Screen)'
+      : decision === 'NO_CRITERIA'
+      ? '⚙ NO CRITERIA DEFINED'
+      : '⚠️ MANUAL REVIEW REQUIRED';
+
   // --- UI RENDER ---
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
-      
+
       {/* CUSTOM ANIMATION STYLES */}
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes floatSlow {
           0%, 100% { transform: translateY(0px) rotate(0deg); }
           50% { transform: translateY(-12px) rotate(-1deg); }
@@ -211,8 +424,6 @@ export default function SRMATelemetryPage() {
              Covidence Bypass
           </div>
           <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block transition-colors duration-700"></div>
-          
-          {/* Top-Notch Theme Toggle Integration */}
           <ThemeToggle />
         </div>
       </header>
@@ -220,10 +431,10 @@ export default function SRMATelemetryPage() {
       {/* MAIN WORKSPACE */}
       <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 lg:p-8 pb-32 lg:pb-8 relative z-10 transition-all duration-500">
         <div className="max-w-[1000px] mx-auto space-y-6 lg:space-y-8">
-          
+
           {/* HERO SECTION */}
           <section className="flex flex-col items-center justify-center text-center pt-8 sm:pt-10 pb-4 relative">
-            
+
             <div className="absolute left-[5%] top-2 hidden lg:flex items-center gap-2 bg-white/90 dark:bg-white/5 backdrop-blur-md px-4 py-2 rounded-full shadow-sm dark:shadow-none border border-black/5 dark:border-white/10 transition-colors duration-700 animate-float-slow">
               <span className="text-sm">🔬</span>
               <span className="text-[11px] font-bold tracking-tight text-neutral-700 dark:text-neutral-200">Data Extraction</span>
@@ -246,36 +457,36 @@ export default function SRMATelemetryPage() {
             </h1>
 
             <p className="max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em] leading-relaxed px-4 relative z-10 transition-colors duration-700">
-              <span className="dark:hidden">DAY_CYCLE</span><span className="hidden dark:inline">NIGHT_CYCLE</span> // <span className="text-[#00A598] font-bold">PICO PROTOCOL ENGAGED</span>
+              <span className="dark:hidden">DAY_CYCLE</span><span className="hidden dark:inline">NIGHT_CYCLE</span> // <span className="text-[#00A598] font-bold">AUTO-EXTRACT ENGAGED</span>
             </p>
           </section>
 
           {/* THE ENGINE (Bento Box Wrapper) */}
           <div className="flex flex-col rounded-[24px] lg:rounded-[32px] bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-black/5 dark:border-white/5 p-5 lg:p-8 shadow-[0_4px_30px_rgb(0,0,0,0.04)] transition-all duration-700">
-            
+
             {/* Dynamic Protocol Editor Header */}
             <div className="flex justify-between items-center mb-6 px-1">
               <h2 className="font-bold text-[16px] tracking-tight flex items-center gap-2 text-neutral-900 dark:text-white transition-colors duration-700">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span> Input Stream
-                <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 border border-blue-600/30 dark:border-blue-400/30 bg-blue-50 dark:bg-blue-400/10 px-1.5 py-0.5 rounded ml-2 uppercase tracking-widest transition-colors hidden sm:inline-block">Smart Context</span>
+                <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 border border-blue-600/30 dark:border-blue-400/30 bg-blue-50 dark:bg-blue-400/10 px-1.5 py-0.5 rounded ml-2 uppercase tracking-widest transition-colors hidden sm:inline-block">Auto-Extract</span>
               </h2>
-              <button 
+              <button
                 onClick={() => setIsEditingProtocol(!isEditingProtocol)}
                 className={`px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all ${
-                  isEditingProtocol 
-                  ? 'bg-[#00A598]/10 dark:bg-[#00A598]/20 text-[#00A598] border-[#00A598]/30 dark:border-[#00A598]/50' 
-                  : 'bg-white dark:bg-white/5 text-neutral-500 dark:text-slate-400 border-black/10 dark:border-white/10 hover:bg-neutral-50 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white'
+                  isEditingProtocol
+                    ? 'bg-[#00A598]/10 dark:bg-[#00A598]/20 text-[#00A598] border-[#00A598]/30 dark:border-[#00A598]/50'
+                    : 'bg-white dark:bg-white/5 text-neutral-500 dark:text-slate-400 border-black/10 dark:border-white/10 hover:bg-neutral-50 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white'
                 }`}
               >
-                {isEditingProtocol ? 'Close Editor' : '⚙ Edit PICO Dictionary'}
+                {isEditingProtocol ? 'Close Editor' : '⚙ Manual Protocol'}
               </button>
             </div>
 
-            {/* Protocol Editor Panel */}
+            {/* Protocol Editor Panel (manual fallback — starts empty) */}
             {isEditingProtocol && (
               <div className="mb-6 p-5 bg-white dark:bg-black/50 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none animate-in fade-in slide-in-from-top-2 transition-colors duration-700">
-                <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white mb-4 border-b border-black/5 dark:border-white/10 pb-2 transition-colors">Protocol Configuration</h3>
-                
+                <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white mb-4 border-b border-black/5 dark:border-white/10 pb-2 transition-colors">Manual Protocol Override</h3>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                   <div>
                     <label className="block text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mb-2 uppercase tracking-wide transition-colors">
@@ -283,6 +494,7 @@ export default function SRMATelemetryPage() {
                     </label>
                     <textarea
                       className="w-full h-32 p-3 bg-neutral-50 dark:bg-white/5 text-neutral-700 dark:text-slate-300 font-mono text-[12px] border border-black/5 dark:border-white/10 rounded-xl focus:border-emerald-500 focus:outline-none custom-scrollbar transition-colors"
+                      placeholder="Empty — populate from suggestions or type here"
                       value={posInput}
                       onChange={(e) => setPosInput(e.target.value)}
                     />
@@ -293,23 +505,24 @@ export default function SRMATelemetryPage() {
                     </label>
                     <textarea
                       className="w-full h-32 p-3 bg-neutral-50 dark:bg-white/5 text-neutral-700 dark:text-slate-300 font-mono text-[12px] border border-black/5 dark:border-white/10 rounded-xl focus:border-red-500 focus:outline-none custom-scrollbar transition-colors"
+                      placeholder="Empty — populate from suggestions or type here"
                       value={negInput}
                       onChange={(e) => setNegInput(e.target.value)}
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end gap-3">
-                  <button 
+                  <button
                     onClick={() => {
-                      setPosInput(defaultPositives.join(', '));
-                      setNegInput(defaultNegatives.join(', '));
+                      setPosInput('');
+                      setNegInput('');
                     }}
                     className="px-4 py-2 text-[12px] font-bold text-neutral-500 dark:text-slate-400 hover:text-neutral-800 dark:hover:text-white transition-colors"
                   >
-                    Reset Defaults
+                    Clear All
                   </button>
-                  <button 
+                  <button
                     onClick={handleApplyProtocol}
                     className="px-5 py-2 bg-[#00A598] hover:bg-[#008f83] text-white text-[12px] font-bold rounded-lg transition-all shadow-sm dark:shadow-[0_0_10px_rgba(0,165,152,0.3)]"
                   >
@@ -323,10 +536,118 @@ export default function SRMATelemetryPage() {
             <div className="space-y-4">
               <textarea
                 className="w-full h-48 p-5 bg-white dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/20 focus:outline-none transition-colors resize-none shadow-inner dark:shadow-none custom-scrollbar"
-                placeholder="Paste the target abstract here for PICO analysis..."
+                placeholder="Paste the target abstract here — keywords are auto-extracted as you type..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
               />
+
+              {/* AUTO-SUGGEST + CLASSIFICATION PANEL */}
+              {!isEditingProtocol && inputText.trim().length > 0 && (
+                <div className="p-5 bg-white dark:bg-black/40 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors space-y-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white flex items-center gap-2 transition-colors">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#00A598]"></span>
+                      Auto-Extracted Suggestions
+                    </h3>
+                    <span className="text-[9px] font-black text-[#00A598] border border-[#00A598]/30 bg-[#00A598]/10 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                      Tap ＋ to include · − to exclude
+                    </span>
+                  </div>
+
+                  {suggestions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.map((word) => (
+                        <span
+                          key={word}
+                          className="group inline-flex items-center gap-1 bg-neutral-50 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg pl-2.5 pr-1 py-1 text-[11px] font-semibold text-neutral-600 dark:text-slate-300 transition-colors"
+                        >
+                          <span className="truncate max-w-[180px]">{word}</span>
+                          <button
+                            onClick={() => classify(word, 'positive')}
+                            title="Add to Inclusion"
+                            className="w-5 h-5 flex items-center justify-center rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 font-black transition-colors"
+                          >
+                            ＋
+                          </button>
+                          <button
+                            onClick={() => classify(word, 'negative')}
+                            title="Add to Exclusion"
+                            className="w-5 h-5 flex items-center justify-center rounded-md text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 font-black transition-colors"
+                          >
+                            −
+                          </button>
+                          <button
+                            onClick={() => dismissSuggestion(word)}
+                            title="Dismiss"
+                            className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 dark:text-slate-500 hover:bg-neutral-200 dark:hover:bg-white/10 transition-colors"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">
+                      No further candidates — all significant terms have been classified or dismissed.
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2 border-t border-black/5 dark:border-white/10">
+                    <div>
+                      <h4 className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mb-2 uppercase tracking-wide transition-colors">
+                        Inclusion Criteria ({positiveKeywords.length})
+                      </h4>
+                      {positiveKeywords.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {positiveKeywords.map((word) => (
+                            <span
+                              key={word}
+                              className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/20 rounded-lg pl-2.5 pr-1.5 py-1 text-[11px] font-bold transition-colors"
+                            >
+                              {word}
+                              <button
+                                onClick={() => removeKeyword(word, 'positive')}
+                                className="text-emerald-500/70 hover:text-emerald-700 dark:hover:text-emerald-200 transition-colors"
+                                title="Remove"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">None yet.</p>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-bold text-red-600 dark:text-red-400 mb-2 uppercase tracking-wide transition-colors">
+                        Exclusion Criteria ({negativeKeywords.length})
+                      </h4>
+                      {negativeKeywords.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {negativeKeywords.map((word) => (
+                            <span
+                              key={word}
+                              className="inline-flex items-center gap-1.5 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/20 rounded-lg pl-2.5 pr-1.5 py-1 text-[11px] font-bold transition-colors"
+                            >
+                              {word}
+                              <button
+                                onClick={() => removeKeyword(word, 'negative')}
+                                className="text-red-500/70 hover:text-red-700 dark:hover:text-red-200 transition-colors"
+                                title="Remove"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">None yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-4">
                 <button
@@ -345,89 +666,169 @@ export default function SRMATelemetryPage() {
               </div>
             </div>
 
-            {/* Results Dashboard */}
-            {isScanned && (
+            {/* Results Dashboard — LAYERED DRILL-DOWN */}
+            {isScanned && scan && (
               <div className="mt-8 pt-8 border-t border-black/5 dark:border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
-                
-                {/* Decision Banner */}
-                <div className={`flex flex-col items-center justify-center p-6 rounded-2xl border transition-colors ${
-                  decision === 'EXCLUDE' ? 'bg-red-50/80 dark:bg-red-950/30 border-red-200 dark:border-red-500/50 text-red-600 dark:text-red-500 shadow-[0_4px_20px_rgba(220,38,38,0.05)] dark:shadow-[0_0_20px_rgba(239,68,68,0.15)]' :
-                  decision === 'INCLUDE / MAYBE' ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-500/50 text-emerald-600 dark:text-emerald-400 shadow-[0_4px_20px_rgba(16,185,129,0.05)] dark:shadow-[0_0_20px_rgba(16,185,129,0.15)]' :
-                  'bg-yellow-50/80 dark:bg-yellow-950/30 border-yellow-200 dark:border-yellow-500/50 text-yellow-600 dark:text-yellow-500 shadow-[0_4px_20px_rgba(234,179,8,0.05)] dark:shadow-[0_0_20px_rgba(234,179,8,0.15)]'
-                }`}>
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3">
-                    {decision === 'EXCLUDE' ? '🚩 EXCLUDE (Criteria Violation)' : 
-                     decision === 'INCLUDE / MAYBE' ? '🟩 INCLUDE / MAYBE (Passes Screen)' : 
-                     '⚠️ MANUAL REVIEW REQUIRED'}
+
+                {/* TIER 1 — ABSTRACT-LEVEL VERDICT */}
+                <div className={`flex flex-col items-center justify-center p-6 rounded-2xl border transition-colors ${decisionBannerClass}`}>
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3 text-center">
+                    {decisionLabel}
                   </h1>
-                  {decision === 'UNCLEAR' && smartNegatives.some(n => n.isNegated) && (
-                     <span className="text-[11px] font-mono text-yellow-600 dark:text-yellow-300/70 mt-3 block tracking-normal uppercase bg-yellow-100 dark:bg-black/20 px-3 py-1 rounded">
-                       Heuristic Engine overrode exclusion because triggers were found in a negated sentence.
-                     </span>
-                   )}
+                  {decision === 'NO_CRITERIA' && (
+                    <span className="text-[11px] font-mono text-yellow-600 dark:text-yellow-300/70 mt-3 block tracking-normal uppercase bg-yellow-100 dark:bg-black/20 px-3 py-1 rounded text-center">
+                      Classify at least one suggested keyword above before scanning.
+                    </span>
+                  )}
+                  {decision === 'UNCLEAR' && scan.negatives.some((n) => n.isNegated) && (
+                    <span className="text-[11px] font-mono text-yellow-600 dark:text-yellow-300/70 mt-3 block tracking-normal uppercase bg-yellow-100 dark:bg-black/20 px-3 py-1 rounded text-center">
+                      Heuristic Engine overrode exclusion because triggers were found in a negated sentence.
+                    </span>
+                  )}
                 </div>
 
-                {/* Metrics Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  
-                  {/* SMARTER KEYWORDS PANEL */}
-                  <div className="md:col-span-1 space-y-4">
-                    <div className="p-5 bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors">
-                      <h4 className="font-bold text-[13px] text-neutral-600 dark:text-emerald-400 mb-4 flex justify-between tracking-tight transition-colors">
-                        Inclusion Hits <span className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded text-[11px] font-black">{smartPositives.length}</span>
-                      </h4>
-                      {smartPositives.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {smartPositives.map((match, i) => <span key={i} className="text-[11px] font-bold uppercase bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-500/20 px-2 py-1 rounded transition-colors">{match.word}</span>)}
-                        </div>
-                      ) : <p className="text-[12px] text-neutral-400 dark:text-slate-500 transition-colors">None detected.</p>}
+                {/* Abstract summary stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Inclusion Hits', value: scan.positives.length, accent: 'text-emerald-600 dark:text-emerald-400' },
+                    { label: 'Exclusion Triggers', value: scan.negatives.length, accent: 'text-red-600 dark:text-red-400' },
+                    { label: 'Sentences', value: scan.sentenceCount, accent: 'text-blue-600 dark:text-blue-400' },
+                    { label: 'Words', value: scan.tokenCount, accent: 'text-neutral-600 dark:text-slate-300' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="p-4 bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl text-center shadow-sm dark:shadow-none transition-colors">
+                      <div className={`text-2xl font-black ${stat.accent}`}>{stat.value}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-slate-500 mt-1">{stat.label}</div>
                     </div>
+                  ))}
+                </div>
 
-                    <div className="p-5 bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors">
-                      <h4 className="font-bold text-[13px] text-neutral-600 dark:text-red-400 mb-4 flex justify-between tracking-tight transition-colors">
-                        Exclusion Triggers <span className="bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400 px-2 py-0.5 rounded text-[11px] font-black">{smartNegatives.length}</span>
-                      </h4>
-                      {smartNegatives.length > 0 ? (
-                        <div className="flex flex-col gap-2">
-                          {smartNegatives.map((match, i) => (
-                            <div key={i} className={`text-[11px] p-2 rounded border transition-colors ${match.isNegated ? 'bg-yellow-50 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/30' : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'}`}>
-                              <span className={`font-bold uppercase ${match.isNegated ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-300'}`}>{match.word}</span>
-                              {match.isNegated && <span className="ml-2 italic text-[10px] text-yellow-600/70 dark:text-yellow-500/70">Context Overridden</span>}
+                {/* TIER 2 — SENTENCE DRILL-DOWN */}
+                <div className="bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors overflow-hidden">
+                  <button
+                    onClick={() => setShowSentences((v) => !v)}
+                    className="w-full flex items-center justify-between p-5 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    <span className="font-bold text-[13px] text-neutral-700 dark:text-slate-200 flex items-center gap-2 tracking-tight">
+                      <span className="text-[#00A598]">▾</span> Drill down to Sentences
+                      <span className="text-[10px] font-black bg-neutral-100 dark:bg-black/50 text-neutral-500 dark:text-slate-400 px-2 py-0.5 rounded">
+                        {scan.sentences.length} flagged
+                      </span>
+                    </span>
+                    <span className="text-[11px] text-neutral-400 dark:text-slate-500">{showSentences ? 'Collapse' : 'Expand'}</span>
+                  </button>
+
+                  {showSentences && (
+                    <div className="px-5 pb-5 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {scan.sentences.length > 0 ? (
+                        scan.sentences.map((s) => (
+                          <div
+                            key={s.index}
+                            className={`p-4 rounded-xl border text-[13px] transition-colors ${
+                              s.negatives.length > 0 && !s.isNegated
+                                ? 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-500/20'
+                                : s.negatives.length > 0 && s.isNegated
+                                ? 'bg-yellow-50/50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-500/20'
+                                : 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-500/20'
+                            }`}
+                          >
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400 dark:text-slate-500">
+                                Sentence #{s.index + 1}
+                              </span>
+                              {s.isNegated && (
+                                <span className="text-[10px] font-bold uppercase text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-500/10 px-1.5 rounded">
+                                  Negated Context
+                                </span>
+                              )}
+                              {s.positives.map((p) => (
+                                <span key={`p-${p}`} className="text-[10px] font-bold uppercase bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-1.5 rounded">
+                                  +{p}
+                                </span>
+                              ))}
+                              {s.negatives.map((n) => (
+                                <span key={`n-${n}`} className="text-[10px] font-bold uppercase bg-red-100 dark:bg-red-500/10 text-red-700 dark:text-red-300 px-1.5 rounded">
+                                  −{n}
+                                </span>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      ) : <p className="text-[12px] text-neutral-400 dark:text-slate-500 transition-colors">None detected.</p>}
+                            <p className="text-neutral-700 dark:text-slate-300 leading-relaxed font-serif">
+                              {getHighlightedText(s.text)}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic px-1">
+                          No sentences matched the active criteria.
+                        </p>
+                      )}
+
+                      {/* TIER 3 — WORD DRILL-DOWN (nested inside sentences) */}
+                      <div className="mt-4 bg-neutral-50/60 dark:bg-black/30 border border-black/5 dark:border-white/10 rounded-xl overflow-hidden">
+                        <button
+                          onClick={() => setShowWords((v) => !v)}
+                          className="w-full flex items-center justify-between p-4 hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
+                        >
+                          <span className="font-bold text-[12px] text-neutral-600 dark:text-slate-300 flex items-center gap-2 tracking-tight">
+                            <span className="text-[#00A598]">▾</span> Drill down to Words
+                            <span className="text-[10px] font-black bg-white dark:bg-black/50 text-neutral-500 dark:text-slate-400 px-2 py-0.5 rounded border border-black/5 dark:border-white/10">
+                              {scan.wordCounts.length} tokens
+                            </span>
+                          </span>
+                          <span className="text-[11px] text-neutral-400 dark:text-slate-500">{showWords ? 'Collapse' : 'Expand'}</span>
+                        </button>
+
+                        {showWords && (
+                          <div className="px-4 pb-4 space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {scan.wordCounts.length > 0 ? (
+                              scan.wordCounts.map((w) => {
+                                const max = Math.max(...scan.wordCounts.map((x) => x.count), 1);
+                                const pct = Math.round((w.count / max) * 100);
+                                return (
+                                  <div key={`${w.polarity}-${w.word}`} className="flex items-center gap-3">
+                                    <span
+                                      className={`text-[11px] font-bold uppercase w-40 truncate ${
+                                        w.polarity === 'positive'
+                                          ? 'text-emerald-600 dark:text-emerald-400'
+                                          : 'text-red-600 dark:text-red-400'
+                                      }`}
+                                    >
+                                      {w.word}
+                                    </span>
+                                    <div className="flex-1 h-3 bg-neutral-200/60 dark:bg-white/5 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${
+                                          w.polarity === 'positive' ? 'bg-emerald-500' : 'bg-red-500'
+                                        }`}
+                                        style={{ width: `${pct}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-[11px] font-black text-neutral-500 dark:text-slate-400 w-6 text-right">
+                                      {w.count}
+                                    </span>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">
+                                No keyword tokens detected.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Full Context Viewer */}
+                <div className="p-5 bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors">
+                  <h4 className="font-bold text-[13px] text-neutral-600 dark:text-slate-300 mb-3 flex justify-between items-center tracking-tight transition-colors">
+                    Full Context Viewer
+                    <span className="text-[9px] bg-neutral-100 dark:bg-black/50 px-2 py-1 rounded border border-black/5 dark:border-white/5 uppercase tracking-widest text-neutral-500 dark:text-slate-500">Telemetry Feed</span>
+                  </h4>
+                  <div className="text-[13px] text-neutral-700 dark:text-slate-300 leading-relaxed bg-neutral-50/50 dark:bg-black/40 p-4 rounded-xl overflow-y-auto font-serif border border-black/5 dark:border-black custom-scrollbar max-h-48 transition-colors">
+                    {getHighlightedText(inputText)}
                   </div>
-
-                  {/* UPGRADED CONTEXT VIEWER */}
-                  <div className="md:col-span-2 p-5 bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none flex flex-col transition-colors">
-                     <h4 className="font-bold text-[13px] text-neutral-600 dark:text-slate-300 mb-4 flex justify-between items-center tracking-tight transition-colors">
-                       Sentence Isolation
-                       <span className="text-[9px] bg-neutral-100 dark:bg-black/50 px-2 py-1 rounded border border-black/5 dark:border-white/5 uppercase tracking-widest text-neutral-500 dark:text-slate-500">Telemetry Feed</span>
-                     </h4>
-                     
-                     {/* Smart Isolation Cards */}
-                     <div className="flex flex-col gap-3 mb-4">
-                       {smartNegatives.map((match, i) => (
-                         <div key={i} className={`p-4 rounded-xl border text-[13px] transition-colors ${match.isNegated ? 'bg-yellow-50/50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-500/20' : 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-500/20'}`}>
-                           <div className="text-[11px] font-bold mb-1.5 flex items-center gap-2">
-                             {match.isNegated ? '⚠️ OVERRIDDEN TRIGGER:' : '🚩 HARD EXCLUSION:'} <span className="uppercase tracking-widest">{match.word}</span>
-                           </div>
-                           <span className="italic text-neutral-600 dark:text-slate-400">"...{match.sentence}..."</span>
-                         </div>
-                       ))}
-                       {smartNegatives.length === 0 && (
-                         <div className="text-[12px] text-neutral-400 dark:text-slate-500 italic px-2 transition-colors">No exclusion sentences detected in feed.</div>
-                       )}
-                     </div>
-
-                     <h4 className="font-bold text-[13px] text-neutral-600 dark:text-slate-300 mb-3 mt-4 transition-colors">Full Context Viewer</h4>
-                     <div className="text-[13px] text-neutral-700 dark:text-slate-300 leading-relaxed bg-neutral-50/50 dark:bg-black/40 p-4 rounded-xl flex-1 overflow-y-auto font-serif border border-black/5 dark:border-black custom-scrollbar max-h-48 transition-colors">
-                        {getHighlightedText()}
-                     </div>
-                  </div>
-
                 </div>
               </div>
             )}

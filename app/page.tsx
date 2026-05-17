@@ -448,16 +448,39 @@ export default function SRMATelemetryPage() {
         }
         .animate-float-slow { animation: floatSlow 6s ease-in-out infinite; }
         .animate-float-fast { animation: floatFast 4s ease-in-out infinite; }
+
+        @keyframes introUp {
+          from { opacity: 0; transform: translateY(18px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes introGlow {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .intro { opacity: 0; animation: introUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .intro-delay-1 { animation-delay: 0.08s; }
+        .intro-delay-2 { animation-delay: 0.20s; }
+        .intro-delay-3 { animation-delay: 0.32s; }
+        .intro-delay-4 { animation-delay: 0.44s; }
+        .intro-atmosphere { opacity: 0; animation: introGlow 1.8s ease-out 0.1s both; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .intro, .intro-atmosphere {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: none !important;
+          }
+        }
       `}} />
 
       {/* DAY/NIGHT ATMOSPHERE */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden transition-opacity duration-1000">
+      <div className="intro-atmosphere absolute inset-0 pointer-events-none z-0 overflow-hidden transition-opacity duration-1000">
         <div className="absolute top-[-10%] right-[10%] w-[60%] h-[60%] bg-gradient-to-br from-blue-400/20 to-purple-400/20 dark:from-blue-600/15 dark:to-[#00A598]/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-60 transition-all duration-1000"></div>
         <div className="absolute bottom-[-10%] left-[5%] w-[50%] h-[50%] bg-gradient-to-tr from-pink-400/20 to-teal-300/20 dark:from-purple-600/10 dark:to-teal-600/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-50 transition-all duration-1000"></div>
       </div>
 
       {/* MINIMALIST HEADER */}
-      <header className="h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 bg-white/60 dark:bg-black/40 backdrop-blur-2xl z-50 border-b border-black/5 dark:border-white/5 transition-colors duration-700">
+      <header className="intro intro-delay-1 h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 bg-white/60 dark:bg-black/40 backdrop-blur-2xl z-50 border-b border-black/5 dark:border-white/5 transition-colors duration-700">
         <div className="flex items-center gap-4 lg:gap-8">
           <Link href="/" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
             <div className="w-7 h-7 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center text-[14px] transition-colors duration-700">V</div>
@@ -494,7 +517,7 @@ export default function SRMATelemetryPage() {
               <span className="text-[11px] font-bold tracking-tight text-[#00A598]">Engine Nominal</span>
             </div>
 
-            <h1 className="font-black tracking-tighter leading-none mb-4 flex flex-col items-center justify-center gap-2 sm:gap-3 xl:gap-4 relative z-10">
+            <h1 className="intro intro-delay-2 font-black tracking-tighter leading-none mb-4 flex flex-col items-center justify-center gap-2 sm:gap-3 xl:gap-4 relative z-10">
               <div className="flex items-center gap-3 text-[24px] sm:text-[32px] lg:text-[40px]">
                 <span className="italic text-white dark:text-black bg-neutral-900 dark:bg-white px-3 py-1.5 rounded-[12px] shadow-sm border border-black/5 dark:border-white/5 leading-none transition-colors duration-700">
                   ///SRMA
@@ -505,13 +528,13 @@ export default function SRMATelemetryPage() {
               </div>
             </h1>
 
-            <p className="max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em] leading-relaxed px-4 relative z-10 transition-colors duration-700">
+            <p className="intro intro-delay-3 max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em] leading-relaxed px-4 relative z-10 transition-colors duration-700">
               <span className="dark:hidden">DAY_CYCLE</span><span className="hidden dark:inline">NIGHT_CYCLE</span> // <span className="text-[#00A598] font-bold">AUTO-EXTRACT ENGAGED</span>
             </p>
           </section>
 
           {/* THE ENGINE (Bento Box Wrapper) */}
-          <div className="flex flex-col rounded-[24px] lg:rounded-[32px] bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-black/5 dark:border-white/5 p-5 lg:p-8 shadow-[0_4px_30px_rgb(0,0,0,0.04)] transition-all duration-700">
+          <div className="intro intro-delay-4 flex flex-col rounded-[24px] lg:rounded-[32px] bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-black/5 dark:border-white/5 p-5 lg:p-8 shadow-[0_4px_30px_rgb(0,0,0,0.04)] transition-all duration-700">
 
             {/* Dynamic Protocol Editor Header */}
             <div className="flex justify-between items-center mb-6 px-1">

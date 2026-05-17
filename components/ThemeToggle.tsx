@@ -2,57 +2,78 @@
 
 import React, { useState, useEffect } from 'react';
 
-export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
+type Mode = 'auto' | 'light' | 'dark';
 
-  // 1. Hydration & Local Storage Sync
+const STORAGE_KEY = 'vestrippn-theme';
+
+// Day = 06:00–17:59, Night = 18:00–05:59 (local time).
+function isNight(d: Date) {
+  const h = d.getHours();
+  return h < 6 || h >= 18;
+}
+
+export default function ThemeToggle() {
+  const [mode, setMode] = useState<Mode>('auto');
+  const [mounted, setMounted] = useState(false);
+  const [, setTick] = useState(0);
+
+  // Hydrate the saved mode after mount (prevents SSR theme mismatch).
   useEffect(() => {
-    setMounted(true);
-    // Check local storage or system preference on load
-    const savedTheme = localStorage.getItem('vestrippn-theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-      setIsDark(true);
-      document.documentElement.classList.add('dark');
-    } else {
-      setIsDark(false);
-      document.documentElement.classList.remove('dark');
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark' || saved === 'auto') {
+      setMode(saved);
     }
+    setMounted(true);
   }, []);
 
-  // 2. The Switch Mechanism
-  const toggleTheme = () => {
-    if (isDark) {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('vestrippn-theme', 'light');
-      setIsDark(false);
-    } else {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('vestrippn-theme', 'dark');
-      setIsDark(true);
-    }
+  const resolvedDark =
+    mode === 'dark' || (mode === 'auto' && isNight(new Date()));
+
+  // Apply the resolved theme to <html> (DOM sync — not a setState).
+  useEffect(() => {
+    if (!mounted) return;
+    document.documentElement.classList.toggle('dark', resolvedDark);
+  }, [mounted, resolvedDark]);
+
+  // In auto mode, re-render each minute so it flips at the 06:00 / 18:00 line.
+  useEffect(() => {
+    if (mode !== 'auto') return;
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, [mode]);
+
+  const cycle = () => {
+    const next: Mode =
+      mode === 'auto' ? 'light' : mode === 'light' ? 'dark' : 'auto';
+    setMode(next);
+    localStorage.setItem(STORAGE_KEY, next);
   };
 
-  // Prevent rendering mismatched UI during SSR
+  // Prevent rendering mismatched UI during SSR.
   if (!mounted) {
     return (
-      <div className="w-[72px] h-[38px] rounded-full bg-black/5 dark:bg-white/5 animate-pulse"></div>
+      <div className="w-[80px] h-[40px] rounded-full bg-black/5 dark:bg-white/5 animate-pulse"></div>
     );
   }
 
+  const trackIndex = mode === 'auto' ? 0 : mode === 'light' ? 1 : 2;
+
   return (
     <button
-      onClick={toggleTheme}
+      onClick={cycle}
       className="relative px-4 py-1.5 bg-black/5 dark:bg-white/[0.03] border border-black/10 dark:border-white/10 rounded-full flex flex-col items-center justify-center leading-none cursor-pointer hover:bg-black/10 dark:hover:bg-white/[0.06] transition-all duration-500 overflow-hidden group active:scale-95 shadow-sm"
-      aria-label="Toggle Theme"
+      aria-label={`Theme mode: ${mode}. Click to change.`}
+      title={
+        mode === 'auto'
+          ? `Auto — following local time (currently ${resolvedDark ? 'Night' : 'Day'})`
+          : `Manual ${mode === 'dark' ? 'Night' : 'Day'}`
+      }
     >
-      {/* Ambient background glow that shifts with the theme */}
-      <div 
+      {/* Ambient background glow that shifts with the resolved theme */}
+      <div
         className={`absolute inset-0 opacity-20 transition-all duration-700 ease-in-out ${
-          isDark 
-            ? 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-500/50 via-transparent to-transparent translate-x-4' 
+          resolvedDark
+            ? 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-500/50 via-transparent to-transparent translate-x-4'
             : 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/50 via-transparent to-transparent -translate-x-4'
         }`}
       />
@@ -62,22 +83,27 @@ export default function ThemeToggle() {
         Mode
       </span>
 
-      {/* Animated Text & Icon Track */}
-      <div className="relative h-[16px] w-[50px] overflow-hidden">
-        <div 
-          className={`absolute top-0 left-0 w-full h-full flex flex-col transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-            isDark ? '-translate-y-[16px]' : 'translate-y-0'
-          }`}
+      {/* Animated Text & Icon Track (Auto / Day / Night) */}
+      <div className="relative h-[16px] w-[58px] overflow-hidden">
+        <div
+          className="absolute top-0 left-0 w-full flex flex-col transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+          style={{ transform: `translateY(-${trackIndex * 16}px)` }}
         >
+          {/* Auto State */}
+          <div className="h-[16px] w-full flex items-center justify-center gap-1 shrink-0">
+            <span className="text-neutral-800 dark:text-white font-bold text-xs">Auto</span>
+            <span className="text-[10px]">{resolvedDark ? '🌙' : '☀️'}</span>
+          </div>
+
           {/* Day State */}
           <div className="h-[16px] w-full flex items-center justify-center gap-1.5 shrink-0">
-            <span className="text-neutral-800 font-bold text-xs">Day</span>
+            <span className="text-neutral-800 dark:text-white font-bold text-xs">Day</span>
             <span className="text-[10px] transform group-hover:rotate-45 transition-transform duration-500">☀️</span>
           </div>
 
           {/* Night State */}
           <div className="h-[16px] w-full flex items-center justify-center gap-1.5 shrink-0">
-            <span className="text-white font-bold text-xs">Night</span>
+            <span className="text-neutral-800 dark:text-white font-bold text-xs">Night</span>
             <span className="text-[10px] transform group-hover:-rotate-12 transition-transform duration-500">🌙</span>
           </div>
         </div>

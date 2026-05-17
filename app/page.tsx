@@ -164,6 +164,26 @@ export default function SRMATelemetryPage() {
     }
   }, [positiveKeywords, negativeKeywords, dismissed]);
 
+  // Replay the intro animation on every appearance — including
+  // back/forward (bfcache) restores, which a fresh CSS load misses.
+  useEffect(() => {
+    const replay = () => {
+      const els = document.querySelectorAll<HTMLElement>(
+        '.intro, .intro-atmosphere'
+      );
+      els.forEach((el) => {
+        el.style.animation = 'none';
+        void el.offsetWidth; // force reflow so the animation restarts
+        el.style.animation = '';
+      });
+    };
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) replay();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   // Heuristic Negation Dictionary
   const negationTriggers = [
     'exclud', 'without', 'no ', 'exception', 'ruled out', 'history of', 'omitted',

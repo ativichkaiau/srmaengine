@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -95,6 +95,32 @@ function extractCandidates(text: string, exclude: Set<string>): string[] {
     .map(([word]) => word);
 }
 
+// --- LOCAL PERSISTENCE (protocol survives reloads, per browser) ---
+const STORE_KEY = 'srma-protocol-v1';
+
+type PersistedProtocol = {
+  positive: string[];
+  negative: string[];
+  dismissed: string[];
+};
+
+function loadPersisted(): PersistedProtocol {
+  const empty: PersistedProtocol = { positive: [], negative: [], dismissed: [] };
+  if (typeof window === 'undefined') return empty;
+  try {
+    const raw = window.localStorage.getItem(STORE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
+    return {
+      positive: Array.isArray(parsed.positive) ? parsed.positive : [],
+      negative: Array.isArray(parsed.negative) ? parsed.negative : [],
+      dismissed: Array.isArray(parsed.dismissed) ? parsed.dismissed : [],
+    };
+  } catch {
+    return empty;
+  }
+}
+
 export default function SRMATelemetryPage() {
   // --- ENGINE STATE ---
   const [inputText, setInputText] = useState('');
@@ -105,15 +131,38 @@ export default function SRMATelemetryPage() {
   const [showSentences, setShowSentences] = useState(false);
   const [showWords, setShowWords] = useState(false);
 
-  // --- CONFIGURATION STATE (starts empty — no placeholder dictionaries) ---
-  const [positiveKeywords, setPositiveKeywords] = useState<string[]>([]);
-  const [negativeKeywords, setNegativeKeywords] = useState<string[]>([]);
+  // --- CONFIGURATION STATE (hydrated from localStorage; no placeholders) ---
+  const [positiveKeywords, setPositiveKeywords] = useState<string[]>(
+    () => loadPersisted().positive
+  );
+  const [negativeKeywords, setNegativeKeywords] = useState<string[]>(
+    () => loadPersisted().negative
+  );
 
   const [isEditingProtocol, setIsEditingProtocol] = useState(false);
-  const [posInput, setPosInput] = useState('');
-  const [negInput, setNegInput] = useState('');
+  const [posInput, setPosInput] = useState(() => loadPersisted().positive.join(', '));
+  const [negInput, setNegInput] = useState(() => loadPersisted().negative.join(', '));
 
-  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>(
+    () => loadPersisted().dismissed
+  );
+
+  // Persist the protocol whenever it changes (external-system sync).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        STORE_KEY,
+        JSON.stringify({
+          positive: positiveKeywords,
+          negative: negativeKeywords,
+          dismissed,
+        })
+      );
+    } catch {
+      /* storage unavailable (private mode / quota) — non-fatal */
+    }
+  }, [positiveKeywords, negativeKeywords, dismissed]);
 
   // Heuristic Negation Dictionary
   const negationTriggers = [
@@ -646,6 +695,11 @@ export default function SRMATelemetryPage() {
                       )}
                     </div>
                   </div>
+
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 dark:text-slate-500 flex items-center gap-1.5 pt-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00A598]"></span>
+                    Protocol auto-saved to this browser
+                  </p>
                 </div>
               )}
 

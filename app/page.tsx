@@ -131,6 +131,22 @@ export default function SRMATelemetryPage() {
   const [showSentences, setShowSentences] = useState(false);
   const [showWords, setShowWords] = useState(false);
 
+  // --- INTRO SPLASH SCREEN (replays on every load + bfcache restore) ---
+  const [introVisible, setIntroVisible] = useState(true);
+  const [introLeaving, setIntroLeaving] = useState(false);
+  const [introTick, setIntroTick] = useState(0);
+
+  // Schedule the splash dismissal. setState only fires inside timers
+  // (async callbacks), so this stays clear of the set-state-in-effect rule.
+  useEffect(() => {
+    const startFade = setTimeout(() => setIntroLeaving(true), 1900);
+    const remove = setTimeout(() => setIntroVisible(false), 2550);
+    return () => {
+      clearTimeout(startFade);
+      clearTimeout(remove);
+    };
+  }, [introTick]);
+
   // --- CONFIGURATION STATE (hydrated from localStorage; no placeholders) ---
   const [positiveKeywords, setPositiveKeywords] = useState<string[]>(
     () => loadPersisted().positive
@@ -178,7 +194,13 @@ export default function SRMATelemetryPage() {
       });
     };
     const onPageShow = (e: PageTransitionEvent) => {
-      if (e.persisted) replay();
+      if (e.persisted) {
+        replay();
+        // Re-run the splash on back/forward (bfcache) restores.
+        setIntroLeaving(false);
+        setIntroVisible(true);
+        setIntroTick((t) => t + 1);
+      }
     };
     window.addEventListener('pageshow', onPageShow);
     return () => window.removeEventListener('pageshow', onPageShow);
@@ -484,19 +506,149 @@ export default function SRMATelemetryPage() {
         .intro-delay-4 { animation-delay: 0.44s; }
         .intro-atmosphere { opacity: 0; animation: introGlow 1.8s ease-out 0.1s both; }
 
+        /* --- Splash intro screen --- */
+        @keyframes splashLogo {
+          0% { opacity: 0; transform: scale(0.82) translateY(10px); filter: blur(6px); }
+          60% { opacity: 1; filter: blur(0); }
+          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+        }
+        @keyframes splashScan {
+          0% { width: 4%; }
+          80% { width: 92%; }
+          100% { width: 100%; }
+        }
+        @keyframes splashPulse {
+          0%, 100% { opacity: 0.55; }
+          50% { opacity: 1; }
+        }
+        @keyframes splashRing {
+          0% { transform: scale(0.9); opacity: 0.7; }
+          100% { transform: scale(1.8); opacity: 0; }
+        }
+        .splash-logo { animation: splashLogo 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .splash-fade { animation: introGlow 0.7s ease-out 0.25s both; }
+        .splash-scan { animation: splashScan 1.9s cubic-bezier(0.5, 0, 0.2, 1) both; }
+        .splash-pulse { animation: splashPulse 1.6s ease-in-out infinite; }
+        .splash-ring { animation: splashRing 2.4s ease-out infinite; }
+
+        /* --- Premium glass surface --- */
+        .glass {
+          background: linear-gradient(155deg, rgba(255,255,255,0.78), rgba(255,255,255,0.42));
+          backdrop-filter: blur(26px) saturate(180%);
+          -webkit-backdrop-filter: blur(26px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.65);
+          box-shadow: 0 12px 40px -12px rgba(15,23,42,0.18), inset 0 1px 0 rgba(255,255,255,0.85);
+        }
+        .dark .glass {
+          background: linear-gradient(155deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015));
+          border: 1px solid rgba(255,255,255,0.10);
+          box-shadow: 0 20px 50px -16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+        .glass-soft {
+          background: linear-gradient(155deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
+          backdrop-filter: blur(18px) saturate(160%);
+          -webkit-backdrop-filter: blur(18px) saturate(160%);
+          border: 1px solid rgba(255,255,255,0.6);
+          box-shadow: 0 6px 22px -10px rgba(15,23,42,0.14), inset 0 1px 0 rgba(255,255,255,0.7);
+        }
+        .dark .glass-soft {
+          background: linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012));
+          border: 1px solid rgba(255,255,255,0.08);
+          box-shadow: 0 10px 30px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+        /* Subtle top sheen highlight for the hero engine box */
+        .glass-sheen::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          padding: 1px;
+          background: linear-gradient(140deg, rgba(255,255,255,0.9), transparent 38%);
+          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+          opacity: 0.7;
+        }
+        .dark .glass-sheen::before {
+          background: linear-gradient(140deg, rgba(255,255,255,0.22), transparent 38%);
+          opacity: 0.6;
+        }
+
+        /* --- Richer drifting atmosphere blobs --- */
+        @keyframes blobDriftA {
+          0%, 100% { transform: translate(0,0) scale(1); }
+          50% { transform: translate(36px, 28px) scale(1.12); }
+        }
+        @keyframes blobDriftB {
+          0%, 100% { transform: translate(0,0) scale(1); }
+          50% { transform: translate(-44px, -26px) scale(1.08); }
+        }
+        @keyframes blobDriftC {
+          0%, 100% { transform: translate(-50%, -50%) scale(1); }
+          50% { transform: translate(-46%, -56%) scale(1.18); }
+        }
+        .blob-a { animation: blobDriftA 16s ease-in-out infinite; }
+        .blob-b { animation: blobDriftB 20s ease-in-out infinite; }
+        .blob-c { animation: blobDriftC 24s ease-in-out infinite; }
+
         @media (prefers-reduced-motion: reduce) {
-          .intro, .intro-atmosphere {
+          .intro, .intro-atmosphere, .splash-logo, .splash-fade, .splash-scan {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
           }
+          .splash-pulse, .splash-ring, .blob-a, .blob-b, .blob-c { animation: none !important; }
+          .splash-scan { width: 100% !important; }
         }
       `}} />
 
-      {/* DAY/NIGHT ATMOSPHERE */}
+      {/* INTRO SPLASH SCREEN */}
+      {introVisible && (
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FAFAFA] dark:bg-[#050505] transition-opacity duration-700 ${
+            introLeaving ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+        >
+          {/* atmosphere behind the splash */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="blob-a absolute top-[-15%] right-[5%] w-[55%] h-[55%] bg-gradient-to-br from-blue-400/30 to-purple-400/25 dark:from-blue-600/25 dark:to-[#00A598]/15 rounded-full blur-[120px]"></div>
+            <div className="blob-b absolute bottom-[-15%] left-[0%] w-[50%] h-[50%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/15 dark:to-teal-600/15 rounded-full blur-[120px]"></div>
+            <div className="blob-c absolute top-1/2 left-1/2 w-[40%] h-[40%] bg-gradient-to-br from-[#00A598]/25 to-blue-300/20 dark:from-[#00A598]/15 dark:to-blue-500/10 rounded-full blur-[110px]"></div>
+          </div>
+
+          <div className="splash-fade relative z-10 flex flex-col items-center gap-7 px-6">
+            {/* Animated logo mark */}
+            <div className="splash-logo relative flex items-center justify-center">
+              <span className="absolute splash-ring w-24 h-24 rounded-[28px] border border-[#00A598]/40"></span>
+              <span className="absolute splash-ring w-24 h-24 rounded-[28px] border border-[#00A598]/40" style={{ animationDelay: '1.2s' }}></span>
+              <span className="relative italic font-black text-white dark:text-black bg-neutral-900 dark:bg-white text-[34px] sm:text-[42px] px-5 py-3 rounded-[24px] shadow-[0_10px_40px_-8px_rgba(0,165,152,0.5)] leading-none">
+                {'///SRMA'}
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <h2 className="text-[18px] sm:text-[22px] font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400">
+                Abstract Telemetry
+              </h2>
+              <p className="splash-pulse font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.4em] text-[#00A598] font-bold">
+                Booting PICO Engine
+              </p>
+            </div>
+
+            {/* Scan progress bar */}
+            <div className="w-[200px] sm:w-[260px] h-[3px] rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+              <div className="splash-scan h-full rounded-full bg-gradient-to-r from-[#00A598] via-blue-500 to-[#00A598]"></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DAY/NIGHT ATMOSPHERE — richer 3-blob drift */}
       <div className="intro-atmosphere absolute inset-0 pointer-events-none z-0 overflow-hidden transition-opacity duration-1000">
-        <div className="absolute top-[-10%] right-[10%] w-[60%] h-[60%] bg-gradient-to-br from-blue-400/20 to-purple-400/20 dark:from-blue-600/15 dark:to-[#00A598]/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-60 transition-all duration-1000"></div>
-        <div className="absolute bottom-[-10%] left-[5%] w-[50%] h-[50%] bg-gradient-to-tr from-pink-400/20 to-teal-300/20 dark:from-purple-600/10 dark:to-teal-600/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-50 transition-all duration-1000"></div>
+        <div className="blob-a absolute top-[-12%] right-[6%] w-[60%] h-[60%] bg-gradient-to-br from-blue-400/25 to-purple-400/25 dark:from-blue-600/18 dark:to-[#00A598]/12 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-70 transition-all duration-1000"></div>
+        <div className="blob-b absolute bottom-[-12%] left-[2%] w-[52%] h-[52%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/14 dark:to-teal-600/14 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-55 transition-all duration-1000"></div>
+        <div className="blob-c absolute top-1/2 left-1/2 w-[46%] h-[46%] bg-gradient-to-br from-[#00A598]/22 to-blue-300/20 dark:from-[#00A598]/14 dark:to-blue-500/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-50 transition-all duration-1000"></div>
       </div>
 
       {/* MINIMALIST HEADER */}
@@ -540,7 +692,7 @@ export default function SRMATelemetryPage() {
             <h1 className="intro intro-delay-2 font-black tracking-tighter leading-none mb-4 flex flex-col items-center justify-center gap-2 sm:gap-3 xl:gap-4 relative z-10">
               <div className="flex items-center gap-3 text-[24px] sm:text-[32px] lg:text-[40px]">
                 <span className="italic text-white dark:text-black bg-neutral-900 dark:bg-white px-3 py-1.5 rounded-[12px] shadow-sm border border-black/5 dark:border-white/5 leading-none transition-colors duration-700">
-                  ///SRMA
+                  {'///SRMA'}
                 </span>
                 <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500 transition-colors duration-700">
                   Abstract Telemetry
@@ -549,12 +701,12 @@ export default function SRMATelemetryPage() {
             </h1>
 
             <p className="intro intro-delay-3 max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em] leading-relaxed px-4 relative z-10 transition-colors duration-700">
-              <span className="dark:hidden">DAY_CYCLE</span><span className="hidden dark:inline">NIGHT_CYCLE</span> // <span className="text-[#00A598] font-bold">AUTO-EXTRACT ENGAGED</span>
+              <span className="dark:hidden">DAY_CYCLE</span><span className="hidden dark:inline">NIGHT_CYCLE</span>{' // '}<span className="text-[#00A598] font-bold">AUTO-EXTRACT ENGAGED</span>
             </p>
           </section>
 
           {/* THE ENGINE (Bento Box Wrapper) */}
-          <div className="intro intro-delay-4 flex flex-col rounded-[24px] lg:rounded-[32px] bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-black/5 dark:border-white/5 p-5 lg:p-8 shadow-[0_4px_30px_rgb(0,0,0,0.04)] transition-all duration-700">
+          <div className="intro intro-delay-4 relative glass glass-sheen flex flex-col rounded-[24px] lg:rounded-[32px] p-5 lg:p-8 transition-all duration-700">
 
             {/* Dynamic Protocol Editor Header */}
             <div className="flex justify-between items-center mb-6 px-1">
@@ -627,7 +779,7 @@ export default function SRMATelemetryPage() {
             {/* Input Form */}
             <div className="space-y-4">
               <textarea
-                className="w-full h-48 p-5 bg-white dark:bg-black/40 border border-black/10 dark:border-white/10 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/20 focus:outline-none transition-colors resize-none shadow-inner dark:shadow-none custom-scrollbar"
+                className="w-full h-48 p-5 bg-white/70 dark:bg-black/30 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none transition-all resize-none shadow-[inset_0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-none custom-scrollbar"
                 placeholder="Paste the target abstract here — keywords are auto-extracted as you type..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -635,7 +787,7 @@ export default function SRMATelemetryPage() {
 
               {/* AUTO-SUGGEST + CLASSIFICATION PANEL */}
               {!isEditingProtocol && inputText.trim().length > 0 && (
-                <div className="p-5 bg-white dark:bg-black/40 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors space-y-5">
+                <div className="glass-soft p-5 rounded-2xl transition-all space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white flex items-center gap-2 transition-colors">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#00A598]"></span>
@@ -749,16 +901,17 @@ export default function SRMATelemetryPage() {
               <div className="flex gap-4">
                 <button
                   onClick={handleClear}
-                  className="px-6 py-3.5 bg-white dark:bg-white/5 hover:bg-neutral-50 dark:hover:bg-white/10 text-neutral-600 dark:text-slate-300 text-sm font-bold rounded-xl transition-colors border border-black/10 dark:border-white/10 active:scale-95 shadow-sm dark:shadow-none"
+                  className="px-6 py-3.5 glass-soft hover:bg-white/90 dark:hover:bg-white/10 text-neutral-600 dark:text-slate-300 text-sm font-bold rounded-xl transition-all active:scale-95"
                 >
                   Clear Cache
                 </button>
                 <button
                   onClick={handleScan}
                   disabled={!inputText.trim() || isEditingProtocol}
-                  className="flex-1 py-3.5 bg-[#00A598] hover:bg-[#009085] disabled:bg-neutral-200 dark:disabled:bg-white/5 disabled:text-neutral-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-[0_4px_15px_rgba(0,165,152,0.3)] dark:shadow-[0_0_15px_rgba(0,165,152,0.3)] disabled:shadow-none active:scale-95"
+                  className="group relative flex-1 py-3.5 overflow-hidden bg-gradient-to-r from-[#00A598] via-[#00b3a5] to-[#0098b8] hover:from-[#009085] hover:to-[#0087a5] disabled:from-neutral-200 disabled:via-neutral-200 disabled:to-neutral-200 dark:disabled:from-white/5 dark:disabled:via-white/5 dark:disabled:to-white/5 disabled:text-neutral-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-[0_6px_22px_-4px_rgba(0,165,152,0.5)] dark:shadow-[0_0_22px_rgba(0,165,152,0.35)] disabled:shadow-none active:scale-[0.98]"
                 >
-                  Execute Smart Scan
+                  <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent disabled:hidden"></span>
+                  <span className="relative">Execute Smart Scan</span>
                 </button>
               </div>
             </div>
@@ -792,7 +945,7 @@ export default function SRMATelemetryPage() {
                     { label: 'Sentences', value: scan.sentenceCount, accent: 'text-blue-600 dark:text-blue-400' },
                     { label: 'Words', value: scan.tokenCount, accent: 'text-neutral-600 dark:text-slate-300' },
                   ].map((stat) => (
-                    <div key={stat.label} className="p-4 bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-xl text-center shadow-sm dark:shadow-none transition-colors">
+                    <div key={stat.label} className="glass-soft p-4 rounded-xl text-center transition-all hover:-translate-y-0.5">
                       <div className={`text-2xl font-black ${stat.accent}`}>{stat.value}</div>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-slate-500 mt-1">{stat.label}</div>
                     </div>
@@ -800,7 +953,7 @@ export default function SRMATelemetryPage() {
                 </div>
 
                 {/* TIER 2 — SENTENCE DRILL-DOWN */}
-                <div className="bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors overflow-hidden">
+                <div className="glass-soft rounded-2xl transition-all overflow-hidden">
                   <button
                     onClick={() => setShowSentences((v) => !v)}
                     className="w-full flex items-center justify-between p-5 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
@@ -918,7 +1071,7 @@ export default function SRMATelemetryPage() {
                 </div>
 
                 {/* Full Context Viewer */}
-                <div className="p-5 bg-white dark:bg-white/5 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none transition-colors">
+                <div className="glass-soft p-5 rounded-2xl transition-all">
                   <h4 className="font-bold text-[13px] text-neutral-600 dark:text-slate-300 mb-3 flex justify-between items-center tracking-tight transition-colors">
                     Full Context Viewer
                     <span className="text-[9px] bg-neutral-100 dark:bg-black/50 px-2 py-1 rounded border border-black/5 dark:border-white/5 uppercase tracking-widest text-neutral-500 dark:text-slate-500">Telemetry Feed</span>

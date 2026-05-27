@@ -104,6 +104,34 @@ type PersistedProtocol = {
   dismissed: string[];
 };
 
+type IntroScene = {
+  index: string;
+  phase: string;
+  title: string;
+  copy: string;
+};
+
+const INTRO_SCENES: IntroScene[] = [
+  {
+    index: '01',
+    phase: 'INGEST',
+    title: 'Load the abstract',
+    copy: 'Paste a study abstract into the matrix. The scanner reads the full text before it starts narrowing the evidence.',
+  },
+  {
+    index: '02',
+    phase: 'SEGMENT',
+    title: 'Split the evidence',
+    copy: 'The matrix drops from abstract-level context into sentences, then down into candidate terms and recurring phrases.',
+  },
+  {
+    index: '03',
+    phase: 'CLASSIFY',
+    title: 'Build the protocol',
+    copy: 'Suggested keywords become inclusion or exclusion criteria. Your saved protocol drives the SRMA verdict.',
+  },
+];
+
 function loadPersisted(): PersistedProtocol {
   const empty: PersistedProtocol = { positive: [], negative: [], dismissed: [] };
   if (typeof window === 'undefined') return empty;
@@ -135,17 +163,19 @@ export default function SRMATelemetryPage() {
   const [introVisible, setIntroVisible] = useState(true);
   const [introLeaving, setIntroLeaving] = useState(false);
   const [introTick, setIntroTick] = useState(0);
+  const [introStep, setIntroStep] = useState(0);
 
-  // Schedule the splash dismissal. setState only fires inside timers
-  // (async callbacks), so this stays clear of the set-state-in-effect rule.
-  useEffect(() => {
-    const startFade = setTimeout(() => setIntroLeaving(true), 1900);
-    const remove = setTimeout(() => setIntroVisible(false), 2550);
-    return () => {
-      clearTimeout(startFade);
-      clearTimeout(remove);
-    };
-  }, [introTick]);
+  const closeIntro = () => {
+    setIntroLeaving(true);
+    window.setTimeout(() => setIntroVisible(false), 560);
+  };
+
+  const replayIntro = () => {
+    setIntroStep(0);
+    setIntroLeaving(false);
+    setIntroVisible(true);
+    setIntroTick((t) => t + 1);
+  };
 
   // --- CONFIGURATION STATE (hydrated from localStorage; no placeholders) ---
   const [positiveKeywords, setPositiveKeywords] = useState<string[]>(
@@ -196,10 +226,8 @@ export default function SRMATelemetryPage() {
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
         replay();
-        // Re-run the splash on back/forward (bfcache) restores.
-        setIntroLeaving(false);
-        setIntroVisible(true);
-        setIntroTick((t) => t + 1);
+        // Re-run the matrix intro on back/forward (bfcache) restores.
+        replayIntro();
       }
     };
     window.addEventListener('pageshow', onPageShow);
@@ -474,6 +502,9 @@ export default function SRMATelemetryPage() {
       ? '⚙ NO CRITERIA DEFINED'
       : '⚠️ MANUAL REVIEW REQUIRED';
 
+  const introScene = INTRO_SCENES[introStep];
+  const isLastIntroStep = introStep === INTRO_SCENES.length - 1;
+
   // --- UI RENDER ---
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
@@ -506,30 +537,43 @@ export default function SRMATelemetryPage() {
         .intro-delay-4 { animation-delay: 0.44s; }
         .intro-atmosphere { opacity: 0; animation: introGlow 1.8s ease-out 0.1s both; }
 
-        /* --- Splash intro screen --- */
-        @keyframes splashLogo {
-          0% { opacity: 0; transform: scale(0.82) translateY(10px); filter: blur(6px); }
-          60% { opacity: 1; filter: blur(0); }
-          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+        /* --- SRMA Matrix intro screen --- */
+        @keyframes matrixCardIn {
+          from { opacity: 0; transform: translateY(24px) scale(0.975); filter: blur(10px); }
+          to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
-        @keyframes splashScan {
-          0% { width: 4%; }
-          80% { width: 92%; }
-          100% { width: 100%; }
+        @keyframes matrixPanelIn {
+          from { opacity: 0; transform: translateY(18px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes splashPulse {
-          0%, 100% { opacity: 0.55; }
-          50% { opacity: 1; }
+        @keyframes matrixPulse {
+          0%, 100% { opacity: 0.55; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.06); }
         }
-        @keyframes splashRing {
-          0% { transform: scale(0.9); opacity: 0.7; }
-          100% { transform: scale(1.8); opacity: 0; }
+        @keyframes matrixBeam {
+          from { stroke-dashoffset: 360; }
+          to { stroke-dashoffset: 0; }
         }
-        .splash-logo { animation: splashLogo 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
-        .splash-fade { animation: introGlow 0.7s ease-out 0.25s both; }
-        .splash-scan { animation: splashScan 1.9s cubic-bezier(0.5, 0, 0.2, 1) both; }
-        .splash-pulse { animation: splashPulse 1.6s ease-in-out infinite; }
-        .splash-ring { animation: splashRing 2.4s ease-out infinite; }
+        @keyframes matrixGlow {
+          0%, 100% { opacity: 0.55; filter: drop-shadow(0 0 6px rgba(0,165,152,0.25)); }
+          50% { opacity: 1; filter: drop-shadow(0 0 18px rgba(0,165,152,0.55)); }
+        }
+        @keyframes matrixScanLine {
+          from { transform: translateY(-16%); opacity: 0; }
+          15%, 85% { opacity: 1; }
+          to { transform: translateY(116%); opacity: 0; }
+        }
+        @keyframes progressIgnite {
+          from { width: 0; opacity: 0.35; }
+          to { width: 100%; opacity: 1; }
+        }
+        .matrix-card { animation: matrixCardIn 0.75s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .matrix-panel { animation: matrixPanelIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .matrix-pulse { animation: matrixPulse 1.8s ease-in-out infinite; }
+        .matrix-beam { stroke-dasharray: 9 10; animation: matrixBeam 2.7s linear infinite; }
+        .matrix-glow { animation: matrixGlow 2s ease-in-out infinite; }
+        .matrix-scan-line { animation: matrixScanLine 2.9s cubic-bezier(0.5, 0, 0.2, 1) infinite; }
+        .progress-ignite { animation: progressIgnite 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
         /* --- Premium glass surface --- */
         .glass {
@@ -593,52 +637,202 @@ export default function SRMATelemetryPage() {
         .blob-c { animation: blobDriftC 24s ease-in-out infinite; }
 
         @media (prefers-reduced-motion: reduce) {
-          .intro, .intro-atmosphere, .splash-logo, .splash-fade, .splash-scan {
+          .intro, .intro-atmosphere, .matrix-card, .matrix-panel, .progress-ignite {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
           }
-          .splash-pulse, .splash-ring, .blob-a, .blob-b, .blob-c { animation: none !important; }
-          .splash-scan { width: 100% !important; }
+          .matrix-pulse, .matrix-beam, .matrix-glow, .matrix-scan-line, .blob-a, .blob-b, .blob-c { animation: none !important; }
+          .progress-ignite { width: 100% !important; }
         }
       `}} />
 
-      {/* INTRO SPLASH SCREEN */}
+      {/* INTRO MATRIX SCREEN */}
       {introVisible && (
         <div
+          key={`srma-matrix-${introTick}`}
           className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FAFAFA] dark:bg-[#050505] transition-opacity duration-700 ${
             introLeaving ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         >
-          {/* atmosphere behind the splash */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <div className="blob-a absolute top-[-15%] right-[5%] w-[55%] h-[55%] bg-gradient-to-br from-blue-400/30 to-purple-400/25 dark:from-blue-600/25 dark:to-[#00A598]/15 rounded-full blur-[120px]"></div>
             <div className="blob-b absolute bottom-[-15%] left-[0%] w-[50%] h-[50%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/15 dark:to-teal-600/15 rounded-full blur-[120px]"></div>
             <div className="blob-c absolute top-1/2 left-1/2 w-[40%] h-[40%] bg-gradient-to-br from-[#00A598]/25 to-blue-300/20 dark:from-[#00A598]/15 dark:to-blue-500/10 rounded-full blur-[110px]"></div>
           </div>
 
-          <div className="splash-fade relative z-10 flex flex-col items-center gap-7 px-6">
-            {/* Animated logo mark */}
-            <div className="splash-logo relative flex items-center justify-center">
-              <span className="absolute splash-ring w-24 h-24 rounded-[28px] border border-[#00A598]/40"></span>
-              <span className="absolute splash-ring w-24 h-24 rounded-[28px] border border-[#00A598]/40" style={{ animationDelay: '1.2s' }}></span>
-              <span className="relative italic font-black text-white dark:text-black bg-neutral-900 dark:bg-white text-[34px] sm:text-[42px] px-5 py-3 rounded-[24px] shadow-[0_10px_40px_-8px_rgba(0,165,152,0.5)] leading-none">
-                {'///SRMA'}
-              </span>
-            </div>
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.045)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:86px_86px] opacity-80"></div>
 
-            <div className="flex flex-col items-center gap-2">
-              <h2 className="text-[18px] sm:text-[22px] font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-400">
-                Abstract Telemetry
+          <button
+            onClick={closeIntro}
+            className="absolute right-4 top-4 sm:right-8 sm:top-7 z-20 rounded-full border border-black/10 dark:border-white/10 bg-white/50 dark:bg-white/5 px-4 py-2 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.18em] text-neutral-500 dark:text-slate-300 backdrop-blur-xl transition-all hover:border-[#00A598]/50 hover:text-[#00A598] active:scale-95"
+          >
+            Skip Intro
+          </button>
+
+          <div className="matrix-card custom-scrollbar relative z-10 mx-4 max-h-[calc(100vh-28px)] w-full max-w-[980px] overflow-y-auto rounded-[28px] border border-white/55 bg-white/[0.72] p-4 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.55)] backdrop-blur-3xl dark:border-white/10 dark:bg-[#090d10]/80 dark:shadow-[0_32px_100px_-42px_rgba(0,0,0,0.85)] sm:p-6 lg:p-8">
+            <div className="text-center">
+              <p className="mb-2 font-mono text-[10px] font-black uppercase tracking-[0.34em] text-[#00A598]">
+                SRMA Matrix Console
+              </p>
+              <h2 className="text-[30px] font-black leading-none tracking-tighter text-neutral-950 dark:text-white sm:text-[46px] lg:text-[52px]">
+                Abstract <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00A598] via-blue-500 to-violet-500">Screening Matrix</span>
               </h2>
-              <p className="splash-pulse font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.4em] text-[#00A598] font-bold">
-                Booting PICO Engine
+              <p className="mt-3 text-[13px] font-semibold text-neutral-500 dark:text-slate-400 sm:text-[15px]">
+                Whole abstract. Sentence evidence. Keyword protocol.
               </p>
             </div>
 
-            {/* Scan progress bar */}
-            <div className="w-[200px] sm:w-[260px] h-[3px] rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-              <div className="splash-scan h-full rounded-full bg-gradient-to-r from-[#00A598] via-blue-500 to-[#00A598]"></div>
+            <div className="matrix-panel relative mt-5 overflow-hidden rounded-[22px] border border-black/10 bg-neutral-950/[0.035] p-3 shadow-inner dark:border-white/10 dark:bg-black/30 sm:p-5">
+              <div className="absolute inset-0 bg-[linear-gradient(rgba(0,165,152,0.09)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.07)_1px,transparent_1px)] bg-[size:92px_70px]"></div>
+              <div className="matrix-scan-line absolute left-0 right-0 h-16 bg-gradient-to-b from-transparent via-[#00A598]/16 to-transparent"></div>
+
+              <svg
+                viewBox="0 0 820 300"
+                className="relative z-10 h-[185px] w-full sm:h-[220px] lg:h-[240px]"
+                role="img"
+                aria-label="SRMA matrix intro diagram"
+              >
+                <defs>
+                  <linearGradient id="matrixPath" x1="0" x2="1" y1="0" y2="0">
+                    <stop stopColor="#00A598" />
+                    <stop offset="0.52" stopColor="#3B82F6" />
+                    <stop offset="1" stopColor="#A855F7" />
+                  </linearGradient>
+                  <filter id="matrixShadow" x="-40%" y="-40%" width="180%" height="180%">
+                    <feGaussianBlur stdDeviation="10" result="blur" />
+                    <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0 0 0 0 0 0.65 0 0 0 0 0.60 0 0 0 0.45 0" />
+                    <feMerge>
+                      <feMergeNode />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+
+                <path
+                  d="M96 152 C 210 70, 310 82, 410 150 S 606 232, 724 120"
+                  fill="none"
+                  stroke="rgba(148,163,184,0.22)"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                />
+                <path
+                  d="M96 152 C 210 70, 310 82, 410 150 S 606 232, 724 120"
+                  fill="none"
+                  stroke="url(#matrixPath)"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  className="matrix-beam"
+                  style={{
+                    opacity: introStep === 0 ? 0.85 : introStep === 1 ? 0.55 : 0.35,
+                  }}
+                />
+
+                {introStep === 1 && (
+                  <>
+                    {[210, 335, 472, 610].map((x, i) => (
+                      <g key={x} className="matrix-glow">
+                        <rect x={x - 40} y={70 + i * 28} width="94" height="30" rx="12" fill="rgba(0,165,152,0.12)" stroke="rgba(0,165,152,0.45)" />
+                        <text x={x + 7} y={90 + i * 28} textAnchor="middle" fill="currentColor" className="text-[12px] font-black text-[#00A598]">
+                          SENT {i + 1}
+                        </text>
+                      </g>
+                    ))}
+                  </>
+                )}
+
+                {introStep === 2 && (
+                  <>
+                    <path d="M402 150 L402 244" stroke="rgba(0,165,152,0.45)" strokeWidth="2" strokeDasharray="6 7" />
+                    <rect x="310" y="230" width="184" height="42" rx="18" fill="rgba(16,185,129,0.14)" stroke="rgba(16,185,129,0.45)" />
+                    <text x="402" y="257" textAnchor="middle" fill="#34D399" className="text-[13px] font-black tracking-[0.12em]">
+                      INCLUDE
+                    </text>
+                    <rect x="520" y="214" width="170" height="42" rx="18" fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.42)" />
+                    <text x="605" y="241" textAnchor="middle" fill="#F87171" className="text-[13px] font-black tracking-[0.12em]">
+                      EXCLUDE
+                    </text>
+                  </>
+                )}
+
+                <g className="matrix-pulse" filter="url(#matrixShadow)">
+                  <circle cx="96" cy="152" r="34" fill="rgba(0,165,152,0.16)" stroke="rgba(0,165,152,0.65)" strokeWidth="3" />
+                  <circle cx="96" cy="152" r="13" fill="#00A598" />
+                </g>
+                <g filter="url(#matrixShadow)">
+                  <circle cx="402" cy="150" r="34" fill="rgba(59,130,246,0.16)" stroke="rgba(59,130,246,0.62)" strokeWidth="3" />
+                  <circle cx="402" cy="150" r="13" fill="#3B82F6" />
+                </g>
+                <g className={introStep === 2 ? 'matrix-pulse' : ''} filter="url(#matrixShadow)">
+                  <circle cx="724" cy="120" r="34" fill="rgba(168,85,247,0.16)" stroke="rgba(168,85,247,0.62)" strokeWidth="3" />
+                  <circle cx="724" cy="120" r="13" fill="#A855F7" />
+                </g>
+
+                <text x="96" y="217" textAnchor="middle" fill="currentColor" className="text-[14px] font-black tracking-[0.16em] text-neutral-500 dark:text-slate-500">
+                  ABSTRACT
+                </text>
+                <text x="402" y="217" textAnchor="middle" fill="currentColor" className="text-[14px] font-black tracking-[0.16em] text-neutral-500 dark:text-slate-500">
+                  SENTENCES
+                </text>
+                <text x="724" y="185" textAnchor="middle" fill="currentColor" className="text-[14px] font-black tracking-[0.16em] text-neutral-500 dark:text-slate-500">
+                  KEYWORDS
+                </text>
+              </svg>
+            </div>
+
+            <div className="mt-5">
+              <div className="font-mono text-[12px] font-black uppercase tracking-[0.28em] text-[#00A598]">
+                {introScene.index} <span className="mx-3 inline-block h-px w-8 translate-y-[-3px] bg-[#00A598]/50"></span> {introScene.phase}
+              </div>
+              <h3 className="mt-2 text-[25px] font-black tracking-tight text-neutral-950 dark:text-white sm:text-[31px]">
+                {introScene.title}
+              </h3>
+              <p className="mt-2 max-w-[760px] text-[14px] font-semibold leading-relaxed text-neutral-600 dark:text-slate-400 sm:text-[16px]">
+                {introScene.copy}
+              </p>
+            </div>
+
+            <div className="mt-5 border-t border-black/10 pt-4 dark:border-white/10">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-3">
+                  {INTRO_SCENES.map((scene, index) => (
+                    <button
+                      key={scene.index}
+                      onClick={() => setIntroStep(index)}
+                      aria-label={`Go to intro step ${scene.index}`}
+                      className={`h-3 rounded-full transition-all ${
+                        index === introStep
+                          ? 'w-16 bg-[#00A598] shadow-[0_0_18px_rgba(0,165,152,0.45)]'
+                          : 'w-10 bg-neutral-300 hover:bg-neutral-400 dark:bg-slate-700 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      {index === introStep && <span className="progress-ignite block h-full rounded-full bg-gradient-to-r from-[#00A598] via-blue-400 to-violet-400"></span>}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setIntroStep((s) => Math.max(0, s - 1))}
+                    disabled={introStep === 0}
+                    className="rounded-full border border-black/10 bg-white/40 px-6 py-3 text-[13px] font-black text-neutral-600 backdrop-blur-xl transition-all hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-35 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (isLastIntroStep) {
+                        closeIntro();
+                        return;
+                      }
+                      setIntroStep((s) => Math.min(INTRO_SCENES.length - 1, s + 1));
+                    }}
+                    className="rounded-full bg-gradient-to-r from-[#00A598] via-blue-500 to-violet-500 px-7 py-3 text-[13px] font-black text-white shadow-[0_10px_30px_-12px_rgba(0,165,152,0.75)] transition-all hover:translate-y-[-1px] hover:shadow-[0_16px_38px_-14px_rgba(59,130,246,0.85)] active:scale-95"
+                  >
+                    {isLastIntroStep ? 'Begin' : 'Next'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -855,13 +855,17 @@ export default function SRMATelemetryPage() {
               <span className="text-blue-600 dark:text-blue-400 transition-colors duration-700">3.0</span>
             </div>
           </Link>
+          <nav className="hidden sm:flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest">
+            <span className="px-3 py-1.5 rounded-lg bg-[#00A598]/10 text-[#00A598] border border-[#00A598]/30">Scanner</span>
+            <Link href="/research" className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors">Research</Link>
+          </nav>
         </div>
 
         <div className="flex gap-4 lg:gap-6 items-center">
-          <div className="hidden sm:block font-medium text-[11px] tracking-tight text-neutral-400 dark:text-neutral-500 transition-colors duration-700">
+          <div className="hidden md:block font-medium text-[11px] tracking-tight text-neutral-400 dark:text-neutral-500 transition-colors duration-700">
              Covidence Bypass
           </div>
-          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden sm:block transition-colors duration-700"></div>
+          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden md:block transition-colors duration-700"></div>
           <ThemeToggle />
         </div>
       </header>

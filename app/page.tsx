@@ -907,7 +907,7 @@ export default function SRMATelemetryPage() {
 
               <h1 className="intro intro-delay-2 font-black tracking-tighter leading-[0.95] relative z-10">
                 <div className="flex items-center gap-3 flex-wrap mb-3">
-                  <span className="italic text-white dark:text-black bg-neutral-900 dark:bg-white px-3 py-1.5 rounded-[14px] shadow-sm border border-black/5 dark:border-white/5 leading-none text-[22px] sm:text-[28px] lg:text-[32px]">
+                  <span className="text-neutral-900 dark:text-white leading-none text-[24px] sm:text-[30px] lg:text-[36px]">
                     {'///SRMA'}
                   </span>
                   <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500 text-[24px] sm:text-[30px] lg:text-[36px]">

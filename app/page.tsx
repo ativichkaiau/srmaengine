@@ -505,6 +505,26 @@ export default function SRMATelemetryPage() {
   const introScene = INTRO_SCENES[introStep];
   const isLastIntroStep = introStep === INTRO_SCENES.length - 1;
 
+  // Operator-dashboard derived values.
+  const heroDateLabel = new Date()
+    .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    .toUpperCase();
+  const totalCriteria = positiveKeywords.length + negativeKeywords.length;
+  const protocolStatusLine =
+    totalCriteria === 0
+      ? 'Protocol uninitialized. Classify keywords below to deploy.'
+      : `Tracking ${positiveKeywords.length} inclusion / ${negativeKeywords.length} exclusion criteria · Auto-saved.`;
+
+  const focusScanner = () => {
+    const el = document.getElementById('engine');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => {
+      const ta = el.querySelector<HTMLTextAreaElement>('textarea');
+      ta?.focus();
+    }, 450);
+  };
+
   // --- UI RENDER ---
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
@@ -872,39 +892,142 @@ export default function SRMATelemetryPage() {
 
       {/* MAIN WORKSPACE */}
       <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 lg:p-8 pb-32 lg:pb-8 relative z-10 transition-all duration-500">
-        <div className="max-w-[1000px] mx-auto space-y-6 lg:space-y-8">
+        <div className="max-w-[1120px] mx-auto space-y-6 lg:space-y-8">
 
-          {/* HERO SECTION */}
-          <section className="flex flex-col items-center justify-center text-center pt-8 sm:pt-10 pb-4 relative">
+          {/* HERO SECTION — split: copy on the left, operator dashboard on the right */}
+          <section className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-10 items-center pt-6 sm:pt-8 pb-2 relative">
 
-            <div className="absolute left-[5%] top-2 hidden lg:flex items-center gap-2 bg-white/90 dark:bg-white/5 backdrop-blur-md px-4 py-2 rounded-full shadow-sm dark:shadow-none border border-black/5 dark:border-white/10 transition-colors duration-700 animate-float-slow">
-              <span className="text-sm">🔬</span>
-              <span className="text-[11px] font-bold tracking-tight text-neutral-700 dark:text-neutral-200">Data Extraction</span>
+            {/* LEFT: hero copy + CTAs */}
+            <div className="lg:col-span-3 flex flex-col gap-5 relative z-10">
+
+              <div className="intro intro-delay-1 inline-flex items-center gap-2 self-start glass-soft rounded-full px-3 py-1.5 text-[10px] sm:text-[11px] font-black tracking-[0.25em] uppercase text-[#00A598]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#00A598] animate-pulse"></span>
+                PICO Telemetry Engine
+              </div>
+
+              <h1 className="intro intro-delay-2 font-black tracking-tighter leading-[0.95] relative z-10">
+                <div className="flex items-center gap-3 flex-wrap mb-3">
+                  <span className="italic text-white dark:text-black bg-neutral-900 dark:bg-white px-3 py-1.5 rounded-[14px] shadow-sm border border-black/5 dark:border-white/5 leading-none text-[22px] sm:text-[28px] lg:text-[32px]">
+                    {'///SRMA'}
+                  </span>
+                  <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500 text-[24px] sm:text-[30px] lg:text-[36px]">
+                    Abstract Telemetry
+                  </span>
+                </div>
+                <div className="text-[34px] sm:text-[44px] lg:text-[54px] text-neutral-900 dark:text-white">
+                  Screen literature at the pace of your{' '}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-br from-[#00A598] via-[#0098b8] to-blue-500">
+                    protocol
+                  </span>
+                  .
+                </div>
+              </h1>
+
+              <p className="intro intro-delay-3 max-w-xl text-[13px] sm:text-[14px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                A multi-source PICO engine that auto-extracts keywords from any pasted abstract,
+                classifies hits at three tiers, and pulls live evidence from Europe PMC and OpenAlex —
+                all in your browser, instantly.
+              </p>
+
+              <div className="intro intro-delay-4 flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  onClick={focusScanner}
+                  className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-black text-[11px] font-black uppercase tracking-[0.2em] hover:opacity-90 active:scale-95 transition-all shadow-[0_8px_30px_-8px_rgba(0,0,0,0.35)] dark:shadow-[0_8px_30px_-8px_rgba(255,255,255,0.25)]"
+                >
+                  Start Scanning
+                </button>
+                <Link
+                  href="/research"
+                  className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full glass-soft text-neutral-700 dark:text-slate-200 text-[11px] font-black uppercase tracking-[0.2em] hover:text-[#00A598] active:scale-95 transition-all"
+                >
+                  Research Hub
+                  <span className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5">↗</span>
+                </Link>
+              </div>
+
+              <ul className="intro intro-delay-4 flex flex-wrap gap-x-5 gap-y-1 mt-1 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.25em] text-neutral-500 dark:text-slate-500">
+                {['Auto-Extract', 'Multi-Source', 'Auto-Classify', 'PICO Protocol'].map((f) => (
+                  <li key={f} className="flex items-center gap-1.5">
+                    <span className="text-[#00A598]">•</span> {f}
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            <div className="absolute right-[5%] bottom-2 hidden lg:flex items-center gap-2 bg-white/90 dark:bg-white/5 backdrop-blur-md px-4 py-2 rounded-full shadow-sm dark:shadow-none border border-black/5 dark:border-white/10 transition-colors duration-700 animate-float-fast">
-              <span className="text-sm">⚡</span>
-              <span className="text-[11px] font-bold tracking-tight text-[#00A598]">Engine Nominal</span>
-            </div>
-
-            <h1 className="intro intro-delay-2 font-black tracking-tighter leading-none mb-4 flex flex-col items-center justify-center gap-2 sm:gap-3 xl:gap-4 relative z-10">
-              <div className="flex items-center gap-3 text-[24px] sm:text-[32px] lg:text-[40px]">
-                <span className="italic text-white dark:text-black bg-neutral-900 dark:bg-white px-3 py-1.5 rounded-[12px] shadow-sm border border-black/5 dark:border-white/5 leading-none transition-colors duration-700">
-                  {'///SRMA'}
-                </span>
-                <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500 transition-colors duration-700">
-                  Abstract Telemetry
+            {/* RIGHT: operator dashboard info card */}
+            <div className="intro intro-delay-3 lg:col-span-2 relative glass glass-sheen rounded-[24px] p-5 lg:p-6 flex flex-col gap-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.25em] text-neutral-500 dark:text-slate-500">
+                    Live Operations
+                  </div>
+                  <div className="text-[14px] font-bold text-neutral-900 dark:text-white">
+                    Operator Dashboard
+                  </div>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-[#00A598]/30 bg-[#00A598]/10 text-[#00A598]">
+                  <span className="dark:hidden">DAY_CYCLE</span>
+                  <span className="hidden dark:inline">NIGHT_CYCLE</span>
                 </span>
               </div>
-            </h1>
 
-            <p className="intro intro-delay-3 max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em] leading-relaxed px-4 relative z-10 transition-colors duration-700">
-              <span className="dark:hidden">DAY_CYCLE</span><span className="hidden dark:inline">NIGHT_CYCLE</span>{' // '}<span className="text-[#00A598] font-bold">AUTO-EXTRACT ENGAGED</span>
-            </p>
+              {/* Inner protocol card */}
+              <div className="glass-soft rounded-2xl p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-[13px] font-bold text-neutral-900 dark:text-white">
+                    <span className="text-base">🎯</span> Active Protocol
+                  </div>
+                  <time
+                    suppressHydrationWarning
+                    className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 dark:text-slate-500"
+                  >
+                    {heroDateLabel}
+                  </time>
+                </div>
+                <div className="text-[12px] italic text-neutral-500 dark:text-slate-400 leading-relaxed">
+                  {protocolStatusLine}
+                </div>
+                <button
+                  onClick={focusScanner}
+                  className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-white/40 dark:bg-black/25 border border-black/5 dark:border-white/10 text-[12px] text-neutral-500 dark:text-slate-400 hover:text-neutral-800 dark:hover:text-white hover:border-[#00A598]/40 transition-all text-left"
+                >
+                  <span className="truncate">Deploy new abstract…</span>
+                  <span className="ml-auto text-[#00A598] font-black group-hover:translate-x-0.5 transition-transform">＋</span>
+                </button>
+              </div>
+
+              {/* Stat tiles */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="glass-soft rounded-xl p-3">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                    Sources
+                  </div>
+                  <div className="text-[18px] font-black text-neutral-900 dark:text-white mt-1 leading-none">2</div>
+                </div>
+                <div className="glass-soft rounded-xl p-3">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                    Mode
+                  </div>
+                  <div className="text-[14px] font-bold text-neutral-900 dark:text-white mt-1 leading-none">
+                    <span className="dark:hidden">Day</span>
+                    <span className="hidden dark:inline">Night</span>
+                  </div>
+                </div>
+                <div className="glass-soft rounded-xl p-3">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                    Status
+                  </div>
+                  <div className="text-[14px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 leading-none flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Nominal
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* THE ENGINE (Bento Box Wrapper) */}
-          <div className="intro intro-delay-4 relative glass glass-sheen flex flex-col rounded-[24px] lg:rounded-[32px] p-5 lg:p-8 transition-all duration-700">
+          <div id="engine" className="intro intro-delay-4 relative glass glass-sheen flex flex-col rounded-[24px] lg:rounded-[32px] p-5 lg:p-8 transition-all duration-700 scroll-mt-24">
 
             {/* Dynamic Protocol Editor Header */}
             <div className="flex justify-between items-center mb-6 px-1">

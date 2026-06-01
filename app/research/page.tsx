@@ -329,7 +329,7 @@ export default function ResearchPage() {
           <section className="flex flex-col items-center text-center pt-6 sm:pt-8 pb-2">
             <h1 className="font-black tracking-tighter leading-none mb-3 text-[24px] sm:text-[32px] lg:text-[40px] flex items-center gap-3 flex-wrap justify-center">
               <span className="text-neutral-900 dark:text-white leading-none">
-                {'///SRMA'}
+                SRMA
               </span>
               <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500">
                 Multi-Source Search

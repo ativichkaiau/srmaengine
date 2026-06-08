@@ -1,0 +1,853 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import ThemeToggle from '@/components/ThemeToggle';
+import {
+  getPyodide,
+  parseNumbers,
+  parseTable,
+  pStars,
+  runStats,
+  type StatMode,
+  type StatPayload,
+} from '@/lib/stats';
+
+type Result = Record<string, unknown> | null;
+
+const MODES: { id: StatMode; label: string; short: string; desc: string }[] = [
+  {
+    id: 'descriptive',
+    label: 'Descriptive',
+    short: 'DESC',
+    desc: 'Central tendency + variability for one sample.',
+  },
+  {
+    id: 'ttest',
+    label: 'T-test',
+    short: 'TTEST',
+    desc: 'Compare means of two groups (Welch by default; paired optional).',
+  },
+  {
+    id: 'anova',
+    label: 'ANOVA',
+    short: 'ANOVA',
+    desc: 'Compare means of three or more groups (one-way).',
+  },
+  {
+    id: 'chi2',
+    label: 'Chi-Square',
+    short: 'CHI²',
+    desc: 'Association between two categorical variables (contingency table).',
+  },
+  {
+    id: 'correlation',
+    label: 'Correlation',
+    short: 'CORR',
+    desc: 'Pearson r + Spearman ρ on paired observations.',
+  },
+  {
+    id: 'regression',
+    label: 'Regression',
+    short: 'REG',
+    desc: 'Simple linear regression of y on x.',
+  },
+];
+
+const fmt = (n: number, digits = 4): string => {
+  if (!isFinite(n)) return '—';
+  if (Math.abs(n) >= 10000 || (Math.abs(n) < 0.001 && n !== 0)) {
+    return n.toExponential(2);
+  }
+  return Number(n.toFixed(digits)).toString();
+};
+
+const fmtP = (p: number): string => {
+  if (!isFinite(p)) return '—';
+  if (p < 0.0001) return '< 0.0001';
+  return p.toFixed(4);
+};
+
+function StatTile({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: string;
+}) {
+  return (
+    <div className="glass-soft rounded-xl p-3">
+      <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+        {label}
+      </div>
+      <div
+        className={`text-[18px] font-black mt-1 leading-none ${
+          accent ?? 'text-neutral-900 dark:text-white'
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DescriptiveCard({
+  title,
+  d,
+}: {
+  title?: string;
+  d: Record<string, unknown>;
+}) {
+  if (d.error) {
+    return (
+      <div className="glass-soft rounded-2xl p-4 text-[12px] text-red-600 dark:text-red-400">
+        {title ? <strong>{title}: </strong> : null}
+        {String(d.error)}
+      </div>
+    );
+  }
+  const f = (k: string) => fmt(Number(d[k]));
+  return (
+    <div className="glass-soft rounded-2xl p-4 space-y-3">
+      {title && (
+        <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+          {title}
+        </div>
+      )}
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+        <StatTile label="n" value={String(d.n)} />
+        <StatTile label="Mean" value={f('mean')} />
+        <StatTile label="Median" value={f('median')} />
+        <StatTile
+          label="Mode"
+          value={`${f('mode')}${
+            d.mode_count && Number(d.mode_count) > 1
+              ? ` (×${d.mode_count})`
+              : ''
+          }`}
+        />
+        <StatTile label="SD" value={f('std')} />
+        <StatTile label="Variance" value={f('variance')} />
+        <StatTile label="Min" value={f('min')} />
+        <StatTile label="Max" value={f('max')} />
+        <StatTile label="Range" value={f('range')} />
+        <StatTile label="Q1" value={f('q1')} />
+        <StatTile label="Q3" value={f('q3')} />
+        <StatTile label="IQR" value={fmt(Number(d.q3) - Number(d.q1))} />
+      </div>
+    </div>
+  );
+}
+
+function pStarColor(p: number) {
+  if (!isFinite(p)) return 'text-neutral-400';
+  if (p < 0.05)
+    return 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/30';
+  return 'text-yellow-700 dark:text-yellow-300 bg-yellow-50 dark:bg-yellow-500/15 border-yellow-200 dark:border-yellow-500/30';
+}
+
+function PChip({ p }: { p: number }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${pStarColor(
+        p
+      )}`}
+      title={
+        p < 0.05
+          ? 'Statistically significant at α = 0.05'
+          : 'Not statistically significant at α = 0.05'
+      }
+    >
+      p = {fmtP(p)} <span>{pStars(p)}</span>
+    </span>
+  );
+}
+
+export default function StatsPage() {
+  const [mode, setMode] = useState<StatMode>('descriptive');
+
+  // Single + two-group + many-group inputs.
+  const [groupText, setGroupText] = useState('');
+  const [group1Text, setGroup1Text] = useState('');
+  const [group2Text, setGroup2Text] = useState('');
+  const [paired, setPaired] = useState(false);
+  const [anovaGroups, setAnovaGroups] = useState<string[]>(['', '', '']);
+  const [tableText, setTableText] = useState('');
+  const [xText, setXText] = useState('');
+  const [yText, setYText] = useState('');
+
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [pyReady, setPyReady] = useState(false);
+  const [result, setResult] = useState<Result>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Pre-warm Pyodide in the background once the page mounts.
+  useEffect(() => {
+    let cancelled = false;
+    getPyodide((msg) => {
+      if (!cancelled) setProgress(msg);
+    })
+      .then(() => {
+        if (!cancelled) setPyReady(true);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(String(err.message || err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleRun = async () => {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      let payload: StatPayload;
+      switch (mode) {
+        case 'descriptive': {
+          const g = parseNumbers(groupText);
+          if (g.length < 1) throw new Error('Paste at least one number.');
+          payload = { group: g };
+          break;
+        }
+        case 'ttest': {
+          const g1 = parseNumbers(group1Text);
+          const g2 = parseNumbers(group2Text);
+          if (g1.length < 2 || g2.length < 2)
+            throw new Error('Each group needs at least 2 values.');
+          payload = { group1: g1, group2: g2, paired };
+          break;
+        }
+        case 'anova': {
+          const groups = anovaGroups
+            .map((t) => parseNumbers(t))
+            .filter((g) => g.length > 0);
+          if (groups.length < 2)
+            throw new Error('Provide values for at least 2 groups.');
+          if (groups.some((g) => g.length < 2))
+            throw new Error('Each group needs at least 2 values.');
+          payload = { groups };
+          break;
+        }
+        case 'chi2': {
+          const tbl = parseTable(tableText);
+          if (tbl.length < 2 || (tbl[0]?.length ?? 0) < 2)
+            throw new Error(
+              'Provide a contingency table of at least 2 rows × 2 columns.'
+            );
+          payload = { observed: tbl };
+          break;
+        }
+        case 'correlation':
+        case 'regression': {
+          const x = parseNumbers(xText);
+          const y = parseNumbers(yText);
+          if (x.length !== y.length)
+            throw new Error(
+              `X and Y must be the same length (got ${x.length} vs ${y.length}).`
+            );
+          if (x.length < 3)
+            throw new Error('Need at least 3 paired observations.');
+          payload = { x, y };
+          break;
+        }
+      }
+      const r = await runStats(mode, payload, setProgress);
+      if (r.error) throw new Error(String(r.error));
+      setResult(r);
+    } catch (e) {
+      const err = e as Error;
+      setError(err.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const currentMode = MODES.find((m) => m.id === mode)!;
+
+  const sampleFillers: Record<StatMode, () => void> = {
+    descriptive: () =>
+      setGroupText('72, 75, 78, 80, 81, 82, 84, 86, 88, 90, 91, 95'),
+    ttest: () => {
+      setGroup1Text('21, 22, 19, 23, 24, 25, 20, 22');
+      setGroup2Text('27, 29, 31, 28, 30, 32, 30, 33');
+      setPaired(false);
+    },
+    anova: () =>
+      setAnovaGroups([
+        '15, 17, 18, 14, 16',
+        '22, 24, 23, 25, 21',
+        '30, 28, 27, 31, 29',
+      ]),
+    chi2: () => setTableText('30, 10\n20, 40'),
+    correlation: () => {
+      setXText('1, 2, 3, 4, 5, 6, 7, 8, 9, 10');
+      setYText('2.1, 4.0, 6.2, 7.9, 10.1, 11.8, 14.2, 16.1, 17.9, 20.3');
+    },
+    regression: () => {
+      setXText('1, 2, 3, 4, 5, 6, 7, 8, 9, 10');
+      setYText('2.1, 4.0, 6.2, 7.9, 10.1, 11.8, 14.2, 16.1, 17.9, 20.3');
+    },
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
+      {/* atmosphere */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="blob-a absolute top-[-12%] right-[6%] w-[60%] h-[60%] bg-gradient-to-br from-blue-400/25 to-purple-400/25 dark:from-blue-600/18 dark:to-[#00A598]/12 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-70"></div>
+        <div className="blob-b absolute bottom-[-12%] left-[2%] w-[52%] h-[52%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/14 dark:to-teal-600/14 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-55"></div>
+        <div className="blob-c absolute top-1/2 left-1/2 w-[46%] h-[46%] bg-gradient-to-br from-[#00A598]/22 to-blue-300/20 dark:from-[#00A598]/14 dark:to-blue-500/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-50"></div>
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes blobDriftA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(36px,28px) scale(1.12)} }
+        @keyframes blobDriftB { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-44px,-26px) scale(1.08)} }
+        @keyframes blobDriftC { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-46%,-56%) scale(1.18)} }
+        .blob-a { animation: blobDriftA 16s ease-in-out infinite; }
+        .blob-b { animation: blobDriftB 20s ease-in-out infinite; }
+        .blob-c { animation: blobDriftC 24s ease-in-out infinite; }
+
+        .glass {
+          background: linear-gradient(155deg, rgba(255,255,255,0.78), rgba(255,255,255,0.42));
+          backdrop-filter: blur(26px) saturate(180%);
+          -webkit-backdrop-filter: blur(26px) saturate(180%);
+          border: 1px solid rgba(255,255,255,0.65);
+          box-shadow: 0 12px 40px -12px rgba(15,23,42,0.18), inset 0 1px 0 rgba(255,255,255,0.85);
+        }
+        .dark .glass {
+          background: linear-gradient(155deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015));
+          border: 1px solid rgba(255,255,255,0.10);
+          box-shadow: 0 20px 50px -16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+        .glass-soft {
+          background: linear-gradient(155deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
+          backdrop-filter: blur(18px) saturate(160%);
+          -webkit-backdrop-filter: blur(18px) saturate(160%);
+          border: 1px solid rgba(255,255,255,0.6);
+          box-shadow: 0 6px 22px -10px rgba(15,23,42,0.14), inset 0 1px 0 rgba(255,255,255,0.7);
+        }
+        .dark .glass-soft {
+          background: linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012));
+          border: 1px solid rgba(255,255,255,0.08);
+          box-shadow: 0 10px 30px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+        }
+        @keyframes scanShimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
+        .scan-shimmer::after {
+          content:''; position:absolute; inset:0;
+          background:linear-gradient(90deg,transparent,rgba(0,165,152,0.35),transparent);
+          animation: scanShimmer 1.4s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .blob-a, .blob-b, .blob-c, .scan-shimmer::after { animation: none !important; }
+        }
+      `}} />
+
+      {/* Header */}
+      <header className="h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 bg-white/60 dark:bg-black/40 backdrop-blur-2xl z-50 border-b border-black/5 dark:border-white/5">
+        <div className="flex items-center gap-4 lg:gap-8">
+          <Link
+            href="/"
+            className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
+            <div className="w-7 h-7 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center text-[14px]">V</div>
+            <div className="flex items-baseline">
+              <span>VESTRIPPN</span>
+              <span className="text-blue-600 dark:text-blue-400">3.0</span>
+            </div>
+          </Link>
+          <nav className="hidden sm:flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest">
+            <Link
+              href="/"
+              className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+            >
+              Scanner
+            </Link>
+            <Link
+              href="/research"
+              className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+            >
+              Research
+            </Link>
+            <span className="px-3 py-1.5 rounded-lg bg-[#00A598]/10 text-[#00A598] border border-[#00A598]/30">
+              Statistics
+            </span>
+          </nav>
+        </div>
+        <div className="flex gap-4 lg:gap-6 items-center">
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 lg:p-8 pb-32 lg:pb-8 relative z-10">
+        <div className="max-w-[1120px] mx-auto space-y-6 lg:space-y-8">
+
+          {/* HERO */}
+          <section className="flex flex-col items-center text-center pt-6 sm:pt-8 pb-2">
+            <h1 className="font-black tracking-tighter leading-none mb-3 text-[24px] sm:text-[32px] lg:text-[40px] flex items-center gap-3 flex-wrap justify-center">
+              <span className="text-neutral-900 dark:text-white leading-none">SRMA</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500">
+                Statistical Engine
+              </span>
+            </h1>
+            <p className="max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em]">
+              CPython · numpy · scipy.stats{' // '}
+              <span className="text-[#00A598] font-bold">In-Browser Analysis</span>
+            </p>
+          </section>
+
+          {/* Runtime status pill */}
+          <div className="glass-soft rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-[11px] font-mono">
+            <div className="flex items-center gap-3">
+              <span
+                className={`relative inline-block w-2 h-2 rounded-full ${
+                  pyReady
+                    ? 'bg-emerald-500'
+                    : error
+                    ? 'bg-red-500'
+                    : 'bg-yellow-500 animate-pulse'
+                }`}
+              ></span>
+              <span className="font-bold uppercase tracking-widest text-neutral-600 dark:text-slate-300">
+                Python Engine
+              </span>
+              <span className="text-neutral-500 dark:text-slate-400">
+                {error
+                  ? `error — ${error}`
+                  : pyReady
+                  ? 'ready · scipy loaded'
+                  : progress || 'booting…'}
+              </span>
+            </div>
+            <span className="text-[10px] uppercase tracking-widest text-neutral-400 dark:text-slate-500">
+              Pyodide v0.26 · ~30 MB cached
+            </span>
+          </div>
+
+          {/* Mode tabs */}
+          <div className="glass p-5 rounded-2xl space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  Analysis Mode
+                </h2>
+                <p className="text-[11px] text-neutral-500 dark:text-slate-400 mt-1">
+                  {currentMode.desc}
+                </p>
+              </div>
+              <button
+                onClick={() => sampleFillers[mode]()}
+                className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 hover:text-[#00A598] transition-colors"
+              >
+                ↻ Fill Sample Data
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    setMode(m.id);
+                    setResult(null);
+                    setError(null);
+                  }}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all ${
+                    mode === m.id
+                      ? 'bg-[#00A598]/10 text-[#00A598] border-[#00A598]/30 ring-2 ring-[#00A598]/20'
+                      : 'bg-white/40 dark:bg-white/5 text-neutral-500 dark:text-slate-400 border-black/10 dark:border-white/10 hover:text-neutral-900 dark:hover:text-white'
+                  }`}
+                >
+                  <span className="font-black mr-1.5 opacity-70">{m.short}</span>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Inputs per mode */}
+            {mode === 'descriptive' && (
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+                  Sample values (comma / space / newline separated)
+                </label>
+                <textarea
+                  value={groupText}
+                  onChange={(e) => setGroupText(e.target.value)}
+                  placeholder="72, 75, 78, 80, 81, 82, 84..."
+                  className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none custom-scrollbar"
+                />
+              </div>
+            )}
+
+            {mode === 'ttest' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">
+                      Group 1 (control)
+                    </label>
+                    <textarea
+                      value={group1Text}
+                      onChange={(e) => setGroup1Text(e.target.value)}
+                      className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">
+                      Group 2 (treatment)
+                    </label>
+                    <textarea
+                      value={group2Text}
+                      onChange={(e) => setGroup2Text(e.target.value)}
+                      className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+                <label className="inline-flex items-center gap-2 text-[12px] font-bold text-neutral-600 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={paired}
+                    onChange={(e) => setPaired(e.target.checked)}
+                    className="accent-[#00A598]"
+                  />
+                  Paired observations (use paired t-test)
+                </label>
+              </div>
+            )}
+
+            {mode === 'anova' && (
+              <div className="space-y-3">
+                {anovaGroups.map((text, i) => (
+                  <div key={i}>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+                        Group {i + 1}
+                      </label>
+                      {anovaGroups.length > 2 && (
+                        <button
+                          onClick={() =>
+                            setAnovaGroups(
+                              anovaGroups.filter((_, idx) => idx !== i)
+                            )
+                          }
+                          className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:text-red-700"
+                        >
+                          ✕ Remove
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={text}
+                      onChange={(e) => {
+                        const next = [...anovaGroups];
+                        next[i] = e.target.value;
+                        setAnovaGroups(next);
+                      }}
+                      className="w-full h-20 p-3 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                    />
+                  </div>
+                ))}
+                <button
+                  onClick={() => setAnovaGroups([...anovaGroups, ''])}
+                  className="text-[11px] font-bold uppercase tracking-widest text-[#00A598] hover:underline"
+                >
+                  + Add Group
+                </button>
+              </div>
+            )}
+
+            {mode === 'chi2' && (
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+                  Contingency table — one row per line, cells separated by comma/space
+                </label>
+                <textarea
+                  value={tableText}
+                  onChange={(e) => setTableText(e.target.value)}
+                  placeholder="30, 10&#10;20, 40"
+                  className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                />
+              </div>
+            )}
+
+            {(mode === 'correlation' || mode === 'regression') && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">
+                    X values
+                  </label>
+                  <textarea
+                    value={xText}
+                    onChange={(e) => setXText(e.target.value)}
+                    className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">
+                    Y values (same length as X)
+                  </label>
+                  <textarea
+                    value={yText}
+                    onChange={(e) => setYText(e.target.value)}
+                    className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <button
+                onClick={handleRun}
+                disabled={busy}
+                className="group relative px-5 py-2.5 overflow-hidden bg-gradient-to-r from-[#00A598] via-[#00b3a5] to-[#0098b8] hover:from-[#009085] hover:to-[#0087a5] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[13px] font-bold rounded-xl transition-all shadow-[0_6px_22px_-4px_rgba(0,165,152,0.5)] dark:shadow-[0_0_22px_rgba(0,165,152,0.35)] active:scale-[0.98]"
+              >
+                <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent disabled:hidden"></span>
+                <span className="relative">
+                  {busy ? 'Running…' : `Run ${currentMode.label}`}
+                </span>
+              </button>
+            </div>
+
+            {error && (
+              <div className="text-[12px] text-red-600 dark:text-red-400 font-mono px-1">
+                {error}
+              </div>
+            )}
+          </div>
+
+          {/* Results */}
+          {result && !error && (
+            <div className="space-y-4">
+              {mode === 'descriptive' && !!result.descriptive && (
+                <DescriptiveCard
+                  d={result.descriptive as Record<string, unknown>}
+                />
+              )}
+
+              {mode === 'ttest' && (
+                <>
+                  <div className="glass p-5 rounded-2xl space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+                        {String(result.test)}
+                      </div>
+                      <PChip p={Number(result.p)} />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <StatTile label="t" value={fmt(Number(result.t))} />
+                      <StatTile label="df" value={fmt(Number(result.df), 2)} />
+                      <StatTile
+                        label="p-value"
+                        value={fmtP(Number(result.p))}
+                      />
+                      <StatTile
+                        label="Cohen's d"
+                        value={fmt(Number(result.cohen_d))}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <DescriptiveCard
+                      title="Group 1"
+                      d={result.group1 as Record<string, unknown>}
+                    />
+                    <DescriptiveCard
+                      title="Group 2"
+                      d={result.group2 as Record<string, unknown>}
+                    />
+                  </div>
+                </>
+              )}
+
+              {mode === 'anova' && (
+                <>
+                  <div className="glass p-5 rounded-2xl space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+                        {String(result.test)}
+                      </div>
+                      <PChip p={Number(result.p)} />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <StatTile label="F" value={fmt(Number(result.F))} />
+                      <StatTile
+                        label="df (between)"
+                        value={String(result.df_between)}
+                      />
+                      <StatTile
+                        label="df (within)"
+                        value={String(result.df_within)}
+                      />
+                      <StatTile
+                        label="η²"
+                        value={fmt(Number(result.eta_squared))}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {(result.groups as Record<string, unknown>[]).map(
+                      (g, i) => (
+                        <DescriptiveCard
+                          key={i}
+                          title={`Group ${i + 1}`}
+                          d={g}
+                        />
+                      )
+                    )}
+                  </div>
+                </>
+              )}
+
+              {mode === 'chi2' && (
+                <div className="glass p-5 rounded-2xl space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+                      {String(result.test)}
+                    </div>
+                    <PChip p={Number(result.p)} />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <StatTile label="χ²" value={fmt(Number(result.chi2))} />
+                    <StatTile label="df" value={String(result.df)} />
+                    <StatTile
+                      label="p-value"
+                      value={fmtP(Number(result.p))}
+                    />
+                    <StatTile
+                      label="Cramér's V"
+                      value={fmt(Number(result.cramer_v))}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+                        Observed
+                      </div>
+                      <Table cells={result.observed as number[][]} />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+                        Expected (under H₀)
+                      </div>
+                      <Table cells={result.expected as number[][]} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {mode === 'correlation' && (
+                <div className="glass p-5 rounded-2xl space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+                      {String(result.test)} · n = {String(result.n)}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="glass-soft rounded-xl p-4 space-y-2">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                        Pearson r
+                      </div>
+                      <div className="text-2xl font-black">
+                        {fmt(Number(result.pearson_r))}
+                      </div>
+                      <PChip p={Number(result.pearson_p)} />
+                    </div>
+                    <div className="glass-soft rounded-xl p-4 space-y-2">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                        Spearman ρ
+                      </div>
+                      <div className="text-2xl font-black">
+                        {fmt(Number(result.spearman_r))}
+                      </div>
+                      <PChip p={Number(result.spearman_p)} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {mode === 'regression' && (
+                <div className="glass p-5 rounded-2xl space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+                      {String(result.test)} · n = {String(result.n)}
+                    </div>
+                    <PChip p={Number(result.p)} />
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <StatTile
+                      label="Slope (b)"
+                      value={fmt(Number(result.slope))}
+                    />
+                    <StatTile
+                      label="Intercept (a)"
+                      value={fmt(Number(result.intercept))}
+                    />
+                    <StatTile label="r" value={fmt(Number(result.r))} />
+                    <StatTile
+                      label="R²"
+                      value={fmt(Number(result.r_squared))}
+                    />
+                    <StatTile
+                      label="Slope SE"
+                      value={fmt(Number(result.stderr))}
+                    />
+                    <StatTile
+                      label="p-value"
+                      value={fmtP(Number(result.p))}
+                    />
+                  </div>
+                  <div className="font-mono text-[13px] mt-2 px-3 py-2 rounded-lg bg-white/40 dark:bg-black/30 border border-black/5 dark:border-white/10">
+                    ŷ = {fmt(Number(result.intercept), 4)} +{' '}
+                    {fmt(Number(result.slope), 4)} · x
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!result && !error && (
+            <div className="glass-soft p-6 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
+              Pick an analysis mode above, paste your numeric data (or use{' '}
+              <span className="font-bold">Fill Sample Data</span>), and hit{' '}
+              <span className="font-bold">Run</span>. The first analysis kicks
+              off Pyodide{' '}
+              <span className="font-mono">(~30 MB, cached after)</span> — every
+              subsequent run is instant and runs entirely in this browser tab.
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function Table({ cells }: { cells: number[][] }) {
+  if (!Array.isArray(cells) || cells.length === 0) return null;
+  return (
+    <div className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
+      <table className="w-full text-[12px] font-mono">
+        <tbody>
+          {cells.map((row, ri) => (
+            <tr
+              key={ri}
+              className="odd:bg-white/40 dark:odd:bg-white/[0.025]"
+            >
+              {row.map((v, ci) => (
+                <td
+                  key={ci}
+                  className="px-3 py-1.5 text-right border-b border-black/5 dark:border-white/5"
+                >
+                  {Number.isFinite(v) ? fmt(v, 3) : '—'}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

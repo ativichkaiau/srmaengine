@@ -878,6 +878,7 @@ export default function SRMATelemetryPage() {
           <nav className="hidden sm:flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest">
             <span className="px-3 py-1.5 rounded-lg bg-[#00A598]/10 text-[#00A598] border border-[#00A598]/30">Scanner</span>
             <Link href="/research" className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors">Research</Link>
+            <Link href="/stats" className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors">Statistics</Link>
           </nav>
         </div>
 

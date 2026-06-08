@@ -184,6 +184,12 @@ export default function StatsPage() {
   const [result, setResult] = useState<Result>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // AI interpretation state (driven by /api/interpret on the server).
+  const [lastPayload, setLastPayload] = useState<StatPayload | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiText, setAiText] = useState('');
+  const [aiError, setAiError] = useState<string | null>(null);
+
   // Pre-warm Pyodide in the background once the page mounts.
   useEffect(() => {
     let cancelled = false;
@@ -205,6 +211,8 @@ export default function StatsPage() {
     setBusy(true);
     setError(null);
     setResult(null);
+    setAiText('');
+    setAiError(null);
     try {
       let payload: StatPayload;
       switch (mode) {
@@ -259,6 +267,7 @@ export default function StatsPage() {
       const r = await runStats(mode, payload, setProgress);
       if (r.error) throw new Error(String(r.error));
       setResult(r);
+      setLastPayload(payload);
     } catch (e) {
       const err = e as Error;
       setError(err.message || String(e));
@@ -806,6 +815,41 @@ export default function StatsPage() {
                   </div>
                 </div>
               )}
+
+              {/* AI Interpretation */}
+              <AIInterpretation
+                busy={aiBusy}
+                text={aiText}
+                error={aiError}
+                onInterpret={async () => {
+                  if (!result || !lastPayload) return;
+                  setAiBusy(true);
+                  setAiError(null);
+                  setAiText('');
+                  try {
+                    const resp = await fetch('/api/interpret', {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify({
+                        mode,
+                        payload: lastPayload,
+                        result,
+                      }),
+                    });
+                    const data = (await resp.json()) as {
+                      text?: string;
+                      error?: string;
+                    };
+                    if (!resp.ok || data.error)
+                      throw new Error(data.error || `HTTP ${resp.status}`);
+                    setAiText(data.text || '');
+                  } catch (e) {
+                    setAiError((e as Error).message || String(e));
+                  } finally {
+                    setAiBusy(false);
+                  }
+                }}
+              />
             </div>
           )}
 
@@ -848,6 +892,118 @@ function Table({ cells }: { cells: number[][] }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function parseSections(text: string): {
+  interpretation: string;
+  assumptions: string;
+  apa: string;
+} {
+  const out = { interpretation: '', assumptions: '', apa: '' };
+  if (!text) return out;
+  const parts = text
+    .split(/^##\s+/m)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const part of parts) {
+    const nl = part.indexOf('\n');
+    const header = (nl >= 0 ? part.slice(0, nl) : part).toLowerCase().trim();
+    const body = nl >= 0 ? part.slice(nl + 1).trim() : '';
+    if (header.startsWith('interpretation')) out.interpretation = body;
+    else if (header.startsWith('assumption')) out.assumptions = body;
+    else if (header.startsWith('apa')) out.apa = body;
+  }
+  if (!out.interpretation && !out.assumptions && !out.apa) {
+    out.interpretation = text.trim();
+  }
+  return out;
+}
+
+function AIInterpretation({
+  busy,
+  text,
+  error,
+  onInterpret,
+}: {
+  busy: boolean;
+  text: string;
+  error: string | null;
+  onInterpret: () => void;
+}) {
+  const { interpretation, assumptions, apa } = parseSections(text);
+  const hasAny = !!(interpretation || assumptions || apa);
+
+  return (
+    <div className="glass p-5 rounded-2xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-neutral-600 dark:text-slate-300 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00A598] animate-pulse"></span>
+            AI Interpretation
+          </span>
+          <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 dark:text-slate-500 border border-black/10 dark:border-white/10 rounded px-1.5 py-0.5">
+            Claude Sonnet 4.5
+          </span>
+        </div>
+        <button
+          onClick={onInterpret}
+          disabled={busy}
+          className="group relative px-4 py-2 overflow-hidden bg-gradient-to-r from-[#00A598] via-[#00b3a5] to-[#0098b8] hover:from-[#009085] hover:to-[#0087a5] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all shadow-[0_4px_18px_-6px_rgba(0,165,152,0.5)]"
+        >
+          <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent disabled:hidden"></span>
+          <span className="relative">
+            {busy ? 'Interpreting…' : hasAny ? 'Re-interpret' : '🧠 Interpret with AI'}
+          </span>
+        </button>
+      </div>
+
+      {!hasAny && !busy && !error && (
+        <p className="text-[12px] text-neutral-500 dark:text-slate-400 leading-relaxed">
+          Click <strong>Interpret with AI</strong> to get a plain-English
+          explanation, an assumption check, and an APA-style write-up of this
+          analysis. (Requires <code className="font-mono text-[11px]">ANTHROPIC_API_KEY</code> set on the Vercel project.)
+        </p>
+      )}
+      {busy && (
+        <p className="text-[12px] text-neutral-500 dark:text-slate-400 italic">
+          Asking Claude for a biostatistician&apos;s read…
+        </p>
+      )}
+      {error && (
+        <p className="text-[12px] text-red-600 dark:text-red-400 font-mono leading-relaxed">
+          {error}
+        </p>
+      )}
+      {hasAny && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <section className="glass-soft rounded-xl p-4 space-y-1.5">
+            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+              Interpretation
+            </div>
+            <p className="text-[13px] leading-relaxed text-neutral-700 dark:text-slate-200 whitespace-pre-wrap">
+              {interpretation || '—'}
+            </p>
+          </section>
+          <section className="glass-soft rounded-xl p-4 space-y-1.5">
+            <div className="text-[10px] font-black uppercase tracking-widest text-yellow-600 dark:text-yellow-400">
+              Assumptions
+            </div>
+            <p className="text-[13px] leading-relaxed text-neutral-700 dark:text-slate-200 whitespace-pre-wrap">
+              {assumptions || '—'}
+            </p>
+          </section>
+          <section className="glass-soft rounded-xl p-4 space-y-1.5">
+            <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+              APA Write-up
+            </div>
+            <p className="text-[13px] leading-relaxed font-serif text-neutral-700 dark:text-slate-200 whitespace-pre-wrap">
+              {apa || '—'}
+            </p>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

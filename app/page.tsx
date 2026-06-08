@@ -56,6 +56,15 @@ const STOPWORDS = new Set([
   'significantly', 'respectively', 'overall', 'based', 'performed', 'reported', 'assessed',
 ]);
 
+// Escape regex metacharacters so user-supplied keywords (e.g. "estrogen (oral)",
+// "uti+", "t2dm [type 2]") can't crash or corrupt the matcher. Internal
+// whitespace is then made flexible with \s+.
+function keywordToRegexSource(word: string): string {
+  return word
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\s+/g, '\\s+');
+}
+
 function extractCandidates(text: string, exclude: Set<string>): string[] {
   const cleaned = text
     .toLowerCase()
@@ -339,7 +348,7 @@ export default function SRMATelemetryPage() {
     };
 
     const buildRegex = (word: string) =>
-      new RegExp(`\\b${word.replace(/\s+/g, '\\s+')}\\b`, 'gi');
+      new RegExp(`\\b${keywordToRegexSource(word)}\\b`, 'gi');
 
     const abstractPositives = new Map<string, SmartMatch>();
     const abstractNegatives = new Map<string, SmartMatch>();
@@ -437,9 +446,7 @@ export default function SRMATelemetryPage() {
     );
     if (allKeywords.length === 0) return text;
 
-    const regexPattern = allKeywords
-      .map((kw) => kw.replace(/\s+/g, '\\s+'))
-      .join('|');
+    const regexPattern = allKeywords.map(keywordToRegexSource).join('|');
     const regex = new RegExp(`\\b(${regexPattern})\\b`, 'gi');
     const parts = text.split(regex);
 

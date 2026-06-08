@@ -1,6 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
+
+// Returns false during SSR + the first hydration render, true thereafter —
+// the idiomatic React way to detect "mounted on the client" without a
+// setState-in-effect cascade.
+const emptySubscribe = () => () => {};
+function useMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 type Mode = 'auto' | 'light' | 'dark';
 
@@ -12,19 +24,21 @@ function isNight(d: Date) {
   return h < 6 || h >= 18;
 }
 
-export default function ThemeToggle() {
-  const [mode, setMode] = useState<Mode>('auto');
-  const [mounted, setMounted] = useState(false);
-  const [, setTick] = useState(0);
+function readSavedMode(): Mode {
+  if (typeof window === 'undefined') return 'auto';
+  const saved = window.localStorage.getItem(STORAGE_KEY);
+  return saved === 'light' || saved === 'dark' || saved === 'auto'
+    ? saved
+    : 'auto';
+}
 
-  // Hydrate the saved mode after mount (prevents SSR theme mismatch).
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'light' || saved === 'dark' || saved === 'auto') {
-      setMode(saved);
-    }
-    setMounted(true);
-  }, []);
+export default function ThemeToggle() {
+  // Read the saved mode in a lazy initializer rather than via setState in an
+  // effect (avoids the set-state-in-effect cascade). Output is still gated on
+  // `mounted` below, so first client render matches the server placeholder.
+  const [mode, setMode] = useState<Mode>(readSavedMode);
+  const [, setTick] = useState(0);
+  const mounted = useMounted();
 
   const resolvedDark =
     mode === 'dark' || (mode === 'auto' && isNight(new Date()));

@@ -21,8 +21,17 @@ const NEGATION_TRIGGERS = [
   'omitted',
 ];
 
+// Escape regex metacharacters in user-supplied keywords (manual PICO editor
+// allows arbitrary text), then make internal whitespace flexible. Prevents
+// SyntaxError crashes and silent mis-matches from chars like ( ) + * [ ].
+export function keywordToRegexSource(word: string): string {
+  return word
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\s+/g, '\\s+');
+}
+
 const buildRegex = (word: string) =>
-  new RegExp(`\\b${word.replace(/\s+/g, '\\s+')}\\b`, 'gi');
+  new RegExp(`\\b${keywordToRegexSource(word)}\\b`, 'gi');
 
 const isSentenceNegated = (sentence: string) => {
   const lower = sentence.toLowerCase();

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
   classifyAbstract,
+  keywordToRegexSource,
   loadProtocol,
   type Classification,
   type StoredProtocol,
@@ -77,7 +78,7 @@ function highlightAbstract(
   const truncated = text.length > limit ? text.slice(0, limit).trimEnd() + '…' : text;
   const all = [...positives, ...negatives].sort((a, b) => b.length - a.length);
   if (all.length === 0) return truncated;
-  const pattern = all.map((w) => w.replace(/\s+/g, '\\s+')).join('|');
+  const pattern = all.map(keywordToRegexSource).join('|');
   const regex = new RegExp(`\\b(${pattern})\\b`, 'gi');
   const parts = truncated.split(regex);
   return parts.map((part, i) => {

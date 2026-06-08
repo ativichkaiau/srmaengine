@@ -1,10 +1,10 @@
 // AI interpretation endpoint for the /stats engine.
 // POSTed by the client with { mode, payload, result } from a completed scipy
-// analysis. Returns three labeled prose sections from Claude:
+// analysis. Returns three labeled prose sections from OpenAI ChatGPT:
 //   Interpretation, Assumptions, APA write-up.
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-5';
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const MODEL = 'gpt-4o-mini';
 
 type Body = {
   mode: string;
@@ -44,12 +44,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return Response.json(
       {
         error:
-          'Server is missing ANTHROPIC_API_KEY. Add it under the Vercel project → Settings → Environment Variables and redeploy.',
+          'Server is missing OPENAI_API_KEY. Add it under the Vercel project → Settings → Environment Variables and redeploy.',
       },
       { status: 503 }
     );
@@ -63,24 +63,26 @@ export async function POST(req: Request) {
 
   let upstream: Response;
   try {
-    upstream = await fetch(ANTHROPIC_URL, {
+    upstream = await fetch(OPENAI_URL, {
       method: 'POST',
       headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${apiKey}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 800,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userMessage }],
+        temperature: 0.4,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userMessage },
+        ],
       }),
     });
   } catch (err) {
     const e = err as Error;
     return Response.json(
-      { error: `Network error talking to Anthropic: ${e.message}` },
+      { error: `Network error talking to OpenAI: ${e.message}` },
       { status: 502 }
     );
   }
@@ -89,22 +91,17 @@ export async function POST(req: Request) {
     const text = await upstream.text().catch(() => '');
     return Response.json(
       {
-        error: `Anthropic API ${upstream.status}: ${text.slice(0, 300)}`,
+        error: `OpenAI API ${upstream.status}: ${text.slice(0, 300)}`,
       },
       { status: 502 }
     );
   }
 
-  type AnthropicResp = {
-    content?: Array<{ type: string; text?: string }>;
+  type OpenAIResp = {
+    choices?: Array<{ message?: { content?: string } }>;
   };
-  const data = (await upstream.json()) as AnthropicResp;
-  const text =
-    (data.content || [])
-      .filter((c) => c.type === 'text' && typeof c.text === 'string')
-      .map((c) => c.text)
-      .join('\n')
-      .trim() || '';
+  const data = (await upstream.json()) as OpenAIResp;
+  const text = (data.choices?.[0]?.message?.content || '').trim();
 
   return Response.json({ text, model: MODEL });
 }

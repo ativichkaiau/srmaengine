@@ -944,7 +944,7 @@ function AIInterpretation({
             AI Interpretation
           </span>
           <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 dark:text-slate-500 border border-black/10 dark:border-white/10 rounded px-1.5 py-0.5">
-            Claude Sonnet 4.5
+            ChatGPT · gpt-4o-mini
           </span>
         </div>
         <button
@@ -963,7 +963,7 @@ function AIInterpretation({
         <p className="text-[12px] text-neutral-500 dark:text-slate-400 leading-relaxed">
           Click <strong>Interpret with AI</strong> to get a plain-English
           explanation, an assumption check, and an APA-style write-up of this
-          analysis. (Requires <code className="font-mono text-[11px]">ANTHROPIC_API_KEY</code> set on the Vercel project.)
+          analysis. (Requires <code className="font-mono text-[11px]">OPENAI_API_KEY</code> set on the Vercel project.)
         </p>
       )}
       {busy && (

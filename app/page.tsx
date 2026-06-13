@@ -123,21 +123,21 @@ type IntroScene = {
 const INTRO_SCENES: IntroScene[] = [
   {
     index: '01',
-    phase: 'INGEST',
-    title: 'Load the abstract',
-    copy: 'Paste a study abstract into the matrix. The scanner reads the full text before it starts narrowing the evidence.',
+    phase: 'DEFINE',
+    title: 'Start with the review question',
+    copy: 'Use your saved PICO protocol as the anchor: population, intervention, outcomes, and exclusion boundaries stay visible before screening begins.',
   },
   {
     index: '02',
-    phase: 'SEGMENT',
-    title: 'Split the evidence',
-    copy: 'The matrix drops from abstract-level context into sentences, then down into candidate terms and recurring phrases.',
+    phase: 'SCREEN',
+    title: 'Read each abstract in context',
+    copy: 'The scanner evaluates the full abstract first, then highlights the sentences and terms that explain the recommendation.',
   },
   {
     index: '03',
-    phase: 'CLASSIFY',
-    title: 'Build the protocol',
-    copy: 'Suggested keywords become inclusion or exclusion criteria. Your saved protocol drives the SRMA verdict.',
+    phase: 'TRIAGE',
+    title: 'Separate include, unclear, and exclude',
+    copy: 'Screening decisions carry forward into literature search and statistics, so every tab works from the same review logic.',
   },
 ];
 
@@ -235,7 +235,7 @@ export default function SRMATelemetryPage() {
     const onPageShow = (e: PageTransitionEvent) => {
       if (e.persisted) {
         replay();
-        // Re-run the matrix intro on back/forward (bfcache) restores.
+        // Re-run the research intro on back/forward (bfcache) restores.
         replayIntro();
       }
     };
@@ -550,42 +550,32 @@ export default function SRMATelemetryPage() {
         .intro-delay-4 { animation-delay: 0.44s; }
         .intro-atmosphere { opacity: 0; animation: introGlow 1.8s ease-out 0.1s both; }
 
-        /* --- SRMA Matrix intro screen --- */
-        @keyframes matrixCardIn {
+        /* --- Research workflow intro screen --- */
+        @keyframes researchCardIn {
           from { opacity: 0; transform: translateY(24px) scale(0.975); filter: blur(10px); }
           to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
-        @keyframes matrixPanelIn {
+        @keyframes researchPanelIn {
           from { opacity: 0; transform: translateY(18px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes matrixPulse {
-          0%, 100% { opacity: 0.55; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.06); }
+        @keyframes researchRowIn {
+          from { opacity: 0; transform: translateX(-10px); }
+          to { opacity: 1; transform: translateX(0); }
         }
-        @keyframes matrixBeam {
-          from { stroke-dashoffset: 360; }
-          to { stroke-dashoffset: 0; }
-        }
-        @keyframes matrixGlow {
-          0%, 100% { opacity: 0.55; filter: drop-shadow(0 0 6px rgba(0,165,152,0.25)); }
-          50% { opacity: 1; filter: drop-shadow(0 0 18px rgba(0,165,152,0.55)); }
-        }
-        @keyframes matrixScanLine {
-          from { transform: translateY(-16%); opacity: 0; }
-          15%, 85% { opacity: 1; }
-          to { transform: translateY(116%); opacity: 0; }
+        @keyframes reviewSweep {
+          0% { transform: translateY(-110%); opacity: 0; }
+          15%, 70% { opacity: 1; }
+          100% { transform: translateY(210%); opacity: 0; }
         }
         @keyframes progressIgnite {
           from { width: 0; opacity: 0.35; }
           to { width: 100%; opacity: 1; }
         }
-        .matrix-card { animation: matrixCardIn 0.75s cubic-bezier(0.22, 1, 0.36, 1) both; }
-        .matrix-panel { animation: matrixPanelIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
-        .matrix-pulse { animation: matrixPulse 1.8s ease-in-out infinite; }
-        .matrix-beam { stroke-dasharray: 9 10; animation: matrixBeam 2.7s linear infinite; }
-        .matrix-glow { animation: matrixGlow 2s ease-in-out infinite; }
-        .matrix-scan-line { animation: matrixScanLine 2.9s cubic-bezier(0.5, 0, 0.2, 1) infinite; }
+        .research-card { animation: researchCardIn 0.75s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .research-panel { animation: researchPanelIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .research-row { animation: researchRowIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .review-sweep { animation: reviewSweep 3s cubic-bezier(0.5, 0, 0.2, 1) infinite; }
         .progress-ignite { animation: progressIgnite 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
         /* --- Premium glass surface --- */
@@ -632,49 +622,26 @@ export default function SRMATelemetryPage() {
           opacity: 0.6;
         }
 
-        /* --- Richer drifting atmosphere blobs --- */
-        @keyframes blobDriftA {
-          0%, 100% { transform: translate(0,0) scale(1); }
-          50% { transform: translate(36px, 28px) scale(1.12); }
-        }
-        @keyframes blobDriftB {
-          0%, 100% { transform: translate(0,0) scale(1); }
-          50% { transform: translate(-44px, -26px) scale(1.08); }
-        }
-        @keyframes blobDriftC {
-          0%, 100% { transform: translate(-50%, -50%) scale(1); }
-          50% { transform: translate(-46%, -56%) scale(1.18); }
-        }
-        .blob-a { animation: blobDriftA 16s ease-in-out infinite; }
-        .blob-b { animation: blobDriftB 20s ease-in-out infinite; }
-        .blob-c { animation: blobDriftC 24s ease-in-out infinite; }
-
         @media (prefers-reduced-motion: reduce) {
-          .intro, .intro-atmosphere, .matrix-card, .matrix-panel, .progress-ignite {
+          .intro, .intro-atmosphere, .research-card, .research-panel, .research-row, .progress-ignite {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
           }
-          .matrix-pulse, .matrix-beam, .matrix-glow, .matrix-scan-line, .blob-a, .blob-b, .blob-c { animation: none !important; }
+          .review-sweep { animation: none !important; }
           .progress-ignite { width: 100% !important; }
         }
       `}} />
 
-      {/* INTRO MATRIX SCREEN */}
+      {/* INTRO RESEARCH WORKFLOW SCREEN */}
       {introVisible && (
         <div
-          key={`srma-matrix-${introTick}`}
+          key={`srma-research-${introTick}`}
           className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FAFAFA] dark:bg-[#050505] transition-opacity duration-700 ${
             introLeaving ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         >
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <div className="blob-a absolute top-[-15%] right-[5%] w-[55%] h-[55%] bg-gradient-to-br from-blue-400/30 to-purple-400/25 dark:from-blue-600/25 dark:to-[#00A598]/15 rounded-full blur-[120px]"></div>
-            <div className="blob-b absolute bottom-[-15%] left-[0%] w-[50%] h-[50%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/15 dark:to-teal-600/15 rounded-full blur-[120px]"></div>
-            <div className="blob-c absolute top-1/2 left-1/2 w-[40%] h-[40%] bg-gradient-to-br from-[#00A598]/25 to-blue-300/20 dark:from-[#00A598]/15 dark:to-blue-500/10 rounded-full blur-[110px]"></div>
-          </div>
-
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.045)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:86px_86px] opacity-80"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(0,165,152,0.12),transparent_32%),radial-gradient(circle_at_80%_8%,rgba(59,130,246,0.10),transparent_30%),linear-gradient(rgba(15,23,42,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.04)_1px,transparent_1px)] dark:bg-[radial-gradient(circle_at_20%_0%,rgba(0,165,152,0.09),transparent_32%),radial-gradient(circle_at_80%_8%,rgba(59,130,246,0.08),transparent_30%),linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:auto,auto,72px_72px,72px_72px]"></div>
 
           <button
             onClick={closeIntro}
@@ -683,114 +650,217 @@ export default function SRMATelemetryPage() {
             Skip Intro
           </button>
 
-          <div className="matrix-card custom-scrollbar relative z-10 mx-4 max-h-[calc(100vh-28px)] w-full max-w-[980px] overflow-y-auto rounded-[28px] border border-white/55 bg-white/[0.72] p-4 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.55)] backdrop-blur-3xl dark:border-white/10 dark:bg-[#090d10]/80 dark:shadow-[0_32px_100px_-42px_rgba(0,0,0,0.85)] sm:p-6 lg:p-8">
-            <div className="text-center">
-              <p className="mb-2 font-mono text-[10px] font-black uppercase tracking-[0.34em] text-[#00A598]">
-                SRMA Matrix Console
-              </p>
-              <h2 className="text-[30px] font-black leading-none tracking-tighter text-neutral-950 dark:text-white sm:text-[46px] lg:text-[52px]">
-                Abstract <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00A598] via-blue-500 to-violet-500">Screening Matrix</span>
-              </h2>
-              <p className="mt-3 text-[13px] font-semibold text-neutral-500 dark:text-slate-400 sm:text-[15px]">
-                Whole abstract. Sentence evidence. Keyword protocol.
-              </p>
+          <div className="research-card custom-scrollbar relative z-10 mx-4 max-h-[calc(100vh-28px)] w-full max-w-[980px] overflow-y-auto rounded-[28px] border border-white/55 bg-white/[0.78] p-4 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.45)] backdrop-blur-3xl dark:border-white/10 dark:bg-[#090d10]/85 dark:shadow-[0_32px_100px_-42px_rgba(0,0,0,0.85)] sm:p-6 lg:p-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.34em] text-[#00A598]">
+                  Systematic Review Workspace
+                </p>
+                <h2 className="mt-2 text-[30px] font-black leading-none tracking-tighter text-neutral-950 dark:text-white sm:text-[44px] lg:text-[50px]">
+                  Evidence Screening Workflow
+                </h2>
+                <p className="mt-3 max-w-2xl text-[13px] font-semibold leading-relaxed text-neutral-500 dark:text-slate-400 sm:text-[15px]">
+                  Define the review logic, screen abstracts consistently, and carry decisions into research search and statistics.
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center lg:min-w-[290px]">
+                {[
+                  ['Protocol', 'Saved'],
+                  ['Sources', '2'],
+                  ['Mode', 'Local'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-black/5 bg-white/55 p-3 dark:border-white/10 dark:bg-white/[0.035]">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                      {label}
+                    </div>
+                    <div className="mt-1 text-[14px] font-black text-neutral-900 dark:text-white">
+                      {value}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="matrix-panel relative mt-5 overflow-hidden rounded-[22px] border border-black/10 bg-neutral-950/[0.035] p-3 shadow-inner dark:border-white/10 dark:bg-black/30 sm:p-5">
-              <div className="absolute inset-0 bg-[linear-gradient(rgba(0,165,152,0.09)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.07)_1px,transparent_1px)] bg-[size:92px_70px]"></div>
-              <div className="matrix-scan-line absolute left-0 right-0 h-16 bg-gradient-to-b from-transparent via-[#00A598]/16 to-transparent"></div>
+            <div className="research-panel relative mt-5 overflow-hidden rounded-[22px] border border-black/10 bg-neutral-950/[0.025] p-4 shadow-inner dark:border-white/10 dark:bg-black/25 sm:p-5">
+              <div className="review-sweep absolute left-0 right-0 top-0 h-20 bg-gradient-to-b from-transparent via-[#00A598]/10 to-transparent"></div>
 
-              <svg
-                viewBox="0 0 820 300"
-                className="relative z-10 h-[185px] w-full sm:h-[220px] lg:h-[240px]"
-                role="img"
-                aria-label="SRMA matrix intro diagram"
-              >
-                <defs>
-                  <linearGradient id="matrixPath" x1="0" x2="1" y1="0" y2="0">
-                    <stop stopColor="#00A598" />
-                    <stop offset="0.52" stopColor="#3B82F6" />
-                    <stop offset="1" stopColor="#A855F7" />
-                  </linearGradient>
-                  <filter id="matrixShadow" x="-40%" y="-40%" width="180%" height="180%">
-                    <feGaussianBlur stdDeviation="10" result="blur" />
-                    <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0 0 0 0 0 0.65 0 0 0 0 0.60 0 0 0 0.45 0" />
-                    <feMerge>
-                      <feMergeNode />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
+              <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.1fr]">
+                <div className="rounded-2xl border border-black/5 bg-white/65 p-4 dark:border-white/10 dark:bg-white/[0.035]">
+                  {introStep === 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3 border-b border-black/5 pb-3 dark:border-white/10">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                            Review protocol
+                          </div>
+                          <div className="mt-1 text-[16px] font-black text-neutral-900 dark:text-white">
+                            PICO criteria board
+                          </div>
+                        </div>
+                        <span className="rounded-lg border border-[#00A598]/30 bg-[#00A598]/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#00A598]">
+                          Ready
+                        </span>
+                      </div>
+                      {[
+                        ['P', 'Population', 'Target participants or condition'],
+                        ['I', 'Intervention', 'Exposure, therapy, or index test'],
+                        ['C', 'Comparator', 'Placebo, standard care, or alternate arm'],
+                        ['O', 'Outcomes', 'Primary endpoints and extracted measures'],
+                      ].map(([code, label, text], i) => (
+                        <div
+                          key={code}
+                          className="research-row flex items-start gap-3 rounded-xl border border-black/5 bg-white/55 p-3 dark:border-white/10 dark:bg-black/20"
+                          style={{ animationDelay: `${i * 0.07}s` }}
+                        >
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-[12px] font-black text-white dark:bg-white dark:text-black">
+                            {code}
+                          </div>
+                          <div>
+                            <div className="text-[12px] font-black text-neutral-900 dark:text-white">
+                              {label}
+                            </div>
+                            <div className="mt-0.5 text-[11px] leading-relaxed text-neutral-500 dark:text-slate-400">
+                              {text}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                <path
-                  d="M96 152 C 210 70, 310 82, 410 150 S 606 232, 724 120"
-                  fill="none"
-                  stroke="rgba(148,163,184,0.22)"
-                  strokeWidth="6"
-                  strokeLinecap="round"
-                />
-                <path
-                  d="M96 152 C 210 70, 310 82, 410 150 S 606 232, 724 120"
-                  fill="none"
-                  stroke="url(#matrixPath)"
-                  strokeWidth="6"
-                  strokeLinecap="round"
-                  className="matrix-beam"
-                  style={{
-                    opacity: introStep === 0 ? 0.85 : introStep === 1 ? 0.55 : 0.35,
-                  }}
-                />
+                  {introStep === 1 && (
+                    <div className="space-y-3">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                        Abstract record
+                      </div>
+                      <div className="rounded-2xl border border-black/5 bg-white/70 p-4 dark:border-white/10 dark:bg-black/20">
+                        <div className="h-3 w-3/4 rounded-full bg-neutral-300 dark:bg-slate-700"></div>
+                        <div className="mt-3 space-y-2">
+                          <div className="h-2 rounded-full bg-neutral-200 dark:bg-slate-800"></div>
+                          <div className="h-2 rounded-full bg-neutral-200 dark:bg-slate-800"></div>
+                          <div className="h-2 w-5/6 rounded-full bg-neutral-200 dark:bg-slate-800"></div>
+                        </div>
+                      </div>
+                      {[
+                        ['Sentence 1', 'Population + condition detected', 'include'],
+                        ['Sentence 3', 'Intervention phrase detected', 'include'],
+                        ['Sentence 5', 'Exclusion trigger in context', 'review'],
+                      ].map(([label, text, tone], i) => (
+                        <div
+                          key={label}
+                          className="research-row flex items-center justify-between gap-3 rounded-xl border border-black/5 bg-white/55 p-3 dark:border-white/10 dark:bg-black/20"
+                          style={{ animationDelay: `${i * 0.08}s` }}
+                        >
+                          <div>
+                            <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                              {label}
+                            </div>
+                            <div className="mt-1 text-[12px] font-semibold text-neutral-700 dark:text-slate-300">
+                              {text}
+                            </div>
+                          </div>
+                          <span
+                            className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase tracking-widest ${
+                              tone === 'review'
+                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                            }`}
+                          >
+                            {tone}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
-                {introStep === 1 && (
-                  <>
-                    {[210, 335, 472, 610].map((x, i) => (
-                      <g key={x} className="matrix-glow">
-                        <rect x={x - 40} y={70 + i * 28} width="94" height="30" rx="12" fill="rgba(0,165,152,0.12)" stroke="rgba(0,165,152,0.45)" />
-                        <text x={x + 7} y={90 + i * 28} textAnchor="middle" fill="currentColor" className="text-[12px] font-black text-[#00A598]">
-                          SENT {i + 1}
-                        </text>
-                      </g>
+                  {introStep === 2 && (
+                    <div className="space-y-3">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                        Screening queue
+                      </div>
+                      {[
+                        ['Include / Maybe', 'Matches protocol without hard exclusions', 'emerald'],
+                        ['Unclear', 'Relevant terms present, context needs review', 'yellow'],
+                        ['Exclude', 'Exclusion criteria or wrong study type', 'red'],
+                      ].map(([label, text, tone], i) => (
+                        <div
+                          key={label}
+                          className={`research-row rounded-2xl border p-4 ${
+                            tone === 'emerald'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300'
+                              : tone === 'yellow'
+                              ? 'border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-500/25 dark:bg-yellow-500/10 dark:text-yellow-300'
+                              : 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-300'
+                          }`}
+                          style={{ animationDelay: `${i * 0.08}s` }}
+                        >
+                          <div className="text-[13px] font-black">{label}</div>
+                          <div className="mt-1 text-[11px] leading-relaxed opacity-80">{text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-black/5 bg-white/50 p-4 dark:border-white/10 dark:bg-black/20">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                        SRMA machine flow
+                      </div>
+                      <div className="mt-1 text-[16px] font-black text-neutral-900 dark:text-white">
+                        {introStep === 0
+                          ? 'Criteria before screening'
+                          : introStep === 1
+                          ? 'Evidence with context'
+                          : 'Decisions ready for reuse'}
+                      </div>
+                    </div>
+                    <div className="rounded-full border border-black/10 bg-white/65 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+                      Step {introStep + 1}/3
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                    {(introStep === 0
+                      ? [
+                          ['1', 'Save criteria', 'Inclusion and exclusion terms persist in this browser.'],
+                          ['2', 'Generate suggestions', 'Keywords are extracted from pasted abstracts.'],
+                          ['3', 'Keep audit logic', 'The same criteria classify scanner and search records.'],
+                        ]
+                      : introStep === 1
+                      ? [
+                          ['1', 'Whole abstract', 'Context is evaluated before sentence-level hits.'],
+                          ['2', 'Sentence evidence', 'Matched sentences explain why a record was flagged.'],
+                          ['3', 'Keyword detail', 'Term counts show what drove the scan.'],
+                        ]
+                      : [
+                          ['1', 'Scanner', 'Triage the current abstract.'],
+                          ['2', 'Research', 'Search external records against the protocol.'],
+                          ['3', 'Statistics', 'Analyze extracted numeric data locally.'],
+                        ]
+                    ).map(([num, label, text], i) => (
+                      <div
+                        key={label}
+                        className="research-row flex gap-3 rounded-xl border border-black/5 bg-white/55 p-3 dark:border-white/10 dark:bg-white/[0.035]"
+                        style={{ animationDelay: `${i * 0.08}s` }}
+                      >
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#00A598]/30 bg-[#00A598]/10 text-[11px] font-black text-[#00A598]">
+                          {num}
+                        </div>
+                        <div>
+                          <div className="text-[12px] font-black text-neutral-900 dark:text-white">
+                            {label}
+                          </div>
+                          <div className="mt-0.5 text-[11px] leading-relaxed text-neutral-500 dark:text-slate-400">
+                            {text}
+                          </div>
+                        </div>
+                      </div>
                     ))}
-                  </>
-                )}
-
-                {introStep === 2 && (
-                  <>
-                    <path d="M402 150 L402 244" stroke="rgba(0,165,152,0.45)" strokeWidth="2" strokeDasharray="6 7" />
-                    <rect x="310" y="230" width="184" height="42" rx="18" fill="rgba(16,185,129,0.14)" stroke="rgba(16,185,129,0.45)" />
-                    <text x="402" y="257" textAnchor="middle" fill="#34D399" className="text-[13px] font-black tracking-[0.12em]">
-                      INCLUDE
-                    </text>
-                    <rect x="520" y="214" width="170" height="42" rx="18" fill="rgba(239,68,68,0.12)" stroke="rgba(239,68,68,0.42)" />
-                    <text x="605" y="241" textAnchor="middle" fill="#F87171" className="text-[13px] font-black tracking-[0.12em]">
-                      EXCLUDE
-                    </text>
-                  </>
-                )}
-
-                <g className="matrix-pulse" filter="url(#matrixShadow)">
-                  <circle cx="96" cy="152" r="34" fill="rgba(0,165,152,0.16)" stroke="rgba(0,165,152,0.65)" strokeWidth="3" />
-                  <circle cx="96" cy="152" r="13" fill="#00A598" />
-                </g>
-                <g filter="url(#matrixShadow)">
-                  <circle cx="402" cy="150" r="34" fill="rgba(59,130,246,0.16)" stroke="rgba(59,130,246,0.62)" strokeWidth="3" />
-                  <circle cx="402" cy="150" r="13" fill="#3B82F6" />
-                </g>
-                <g className={introStep === 2 ? 'matrix-pulse' : ''} filter="url(#matrixShadow)">
-                  <circle cx="724" cy="120" r="34" fill="rgba(168,85,247,0.16)" stroke="rgba(168,85,247,0.62)" strokeWidth="3" />
-                  <circle cx="724" cy="120" r="13" fill="#A855F7" />
-                </g>
-
-                <text x="96" y="217" textAnchor="middle" fill="currentColor" className="text-[14px] font-black tracking-[0.16em] text-neutral-500 dark:text-slate-500">
-                  ABSTRACT
-                </text>
-                <text x="402" y="217" textAnchor="middle" fill="currentColor" className="text-[14px] font-black tracking-[0.16em] text-neutral-500 dark:text-slate-500">
-                  SENTENCES
-                </text>
-                <text x="724" y="185" textAnchor="middle" fill="currentColor" className="text-[14px] font-black tracking-[0.16em] text-neutral-500 dark:text-slate-500">
-                  KEYWORDS
-                </text>
-              </svg>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="mt-5">

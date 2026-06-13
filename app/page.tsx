@@ -502,25 +502,22 @@ export default function SRMATelemetryPage() {
 
   const decisionLabel =
     decision === 'EXCLUDE'
-      ? '🚩 EXCLUDE (Criteria Violation)'
+      ? 'EXCLUDE (Criteria Violation)'
       : decision === 'INCLUDE / MAYBE'
-      ? '🟩 INCLUDE / MAYBE (Passes Screen)'
+      ? 'INCLUDE / MAYBE (Passes Screen)'
       : decision === 'NO_CRITERIA'
-      ? '⚙ NO CRITERIA DEFINED'
-      : '⚠️ MANUAL REVIEW REQUIRED';
+      ? 'NO CRITERIA DEFINED'
+      : 'MANUAL REVIEW REQUIRED';
 
   const introScene = INTRO_SCENES[introStep];
   const isLastIntroStep = introStep === INTRO_SCENES.length - 1;
 
-  // Operator-dashboard derived values.
-  const heroDateLabel = new Date()
-    .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    .toUpperCase();
+  // Hero/context summary.
   const totalCriteria = positiveKeywords.length + negativeKeywords.length;
   const protocolStatusLine =
     totalCriteria === 0
-      ? 'Protocol uninitialized. Classify keywords below to deploy.'
-      : `Tracking ${positiveKeywords.length} inclusion / ${negativeKeywords.length} exclusion criteria · Auto-saved.`;
+      ? 'No saved protocol yet. Paste an abstract and classify suggested keywords to begin.'
+      : `${positiveKeywords.length} inclusion and ${negativeKeywords.length} exclusion keywords saved in this browser.`;
 
   const focusScanner = () => {
     const el = document.getElementById('engine');
@@ -538,17 +535,6 @@ export default function SRMATelemetryPage() {
 
       {/* CUSTOM ANIMATION STYLES */}
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes floatSlow {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-12px) rotate(-1deg); }
-        }
-        @keyframes floatFast {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-8px) rotate(2deg); }
-        }
-        .animate-float-slow { animation: floatSlow 6s ease-in-out infinite; }
-        .animate-float-fast { animation: floatFast 4s ease-in-out infinite; }
-
         @keyframes introUp {
           from { opacity: 0; transform: translateY(18px); }
           to { opacity: 1; transform: translateY(0); }
@@ -865,11 +851,9 @@ export default function SRMATelemetryPage() {
         </div>
       )}
 
-      {/* DAY/NIGHT ATMOSPHERE — richer 3-blob drift */}
+      {/* Restrained app backdrop */}
       <div className="intro-atmosphere absolute inset-0 pointer-events-none z-0 overflow-hidden transition-opacity duration-1000">
-        <div className="blob-a absolute top-[-12%] right-[6%] w-[60%] h-[60%] bg-gradient-to-br from-blue-400/25 to-purple-400/25 dark:from-blue-600/18 dark:to-[#00A598]/12 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-70 transition-all duration-1000"></div>
-        <div className="blob-b absolute bottom-[-12%] left-[2%] w-[52%] h-[52%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/14 dark:to-teal-600/14 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-55 transition-all duration-1000"></div>
-        <div className="blob-c absolute top-1/2 left-1/2 w-[46%] h-[46%] bg-gradient-to-br from-[#00A598]/22 to-blue-300/20 dark:from-[#00A598]/14 dark:to-blue-500/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-50 transition-all duration-1000"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(0,165,152,0.10),transparent_34%),radial-gradient(circle_at_85%_10%,rgba(59,130,246,0.10),transparent_30%)] dark:bg-[radial-gradient(circle_at_20%_0%,rgba(0,165,152,0.08),transparent_34%),radial-gradient(circle_at_85%_10%,rgba(59,130,246,0.08),transparent_30%)]"></div>
       </div>
 
       {/* MINIMALIST HEADER */}
@@ -890,10 +874,6 @@ export default function SRMATelemetryPage() {
         </div>
 
         <div className="flex gap-4 lg:gap-6 items-center">
-          <div className="hidden md:block font-medium text-[11px] tracking-tight text-neutral-400 dark:text-neutral-500 transition-colors duration-700">
-             Covidence Bypass
-          </div>
-          <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 hidden md:block transition-colors duration-700"></div>
           <ThemeToggle />
         </div>
       </header>
@@ -902,135 +882,52 @@ export default function SRMATelemetryPage() {
       <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-5 lg:p-8 pb-32 lg:pb-8 relative z-10 transition-all duration-500">
         <div className="max-w-[1120px] mx-auto space-y-6 lg:space-y-8">
 
-          {/* HERO SECTION — split: copy on the left, operator dashboard on the right */}
-          <section className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-10 items-center pt-6 sm:pt-8 pb-2 relative">
-
-            {/* LEFT: hero copy + CTAs */}
-            <div className="lg:col-span-3 flex flex-col gap-5 relative z-10">
-
-              <div className="intro intro-delay-1 inline-flex items-center gap-2 self-start glass-soft rounded-full px-3 py-1.5 text-[10px] sm:text-[11px] font-black tracking-[0.25em] uppercase text-[#00A598]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00A598] animate-pulse"></span>
-                PICO Telemetry Engine
+          {/* HERO SECTION */}
+          <section className="intro intro-delay-2 glass-soft rounded-[24px] p-5 sm:p-7 lg:p-8 flex flex-col gap-5">
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+              <div className="max-w-3xl">
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
+                  Scanner
+                </p>
+                <h1 className="mt-2 text-[32px] sm:text-[44px] lg:text-[54px] font-black tracking-tighter leading-[0.98] text-neutral-900 dark:text-white">
+                  Screen abstracts against a saved PICO protocol.
+                </h1>
+                <p className="mt-4 max-w-2xl text-[13px] sm:text-[14px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                  Paste an abstract, auto-extract candidate keywords, classify them as inclusion or exclusion criteria, then run a tiered scan across the full abstract, matching sentences, and keyword hits.
+                </p>
               </div>
 
-              <h1 className="intro intro-delay-2 font-black tracking-tighter leading-[0.95] relative z-10">
-                <div className="flex items-center gap-3 flex-wrap mb-3">
-                  <span className="text-neutral-900 dark:text-white leading-none text-[24px] sm:text-[30px] lg:text-[36px]">
-                    SRMA
-                  </span>
-                  <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500 text-[24px] sm:text-[30px] lg:text-[36px]">
-                    Abstract Telemetry
-                  </span>
-                </div>
-                <div className="text-[34px] sm:text-[44px] lg:text-[54px] text-neutral-900 dark:text-white">
-                  Screen literature at the pace of your{' '}
-                  <span className="text-transparent bg-clip-text bg-gradient-to-br from-[#00A598] via-[#0098b8] to-blue-500">
-                    protocol
-                  </span>
-                  .
-                </div>
-              </h1>
-
-              <p className="intro intro-delay-3 max-w-xl text-[13px] sm:text-[14px] leading-relaxed text-neutral-600 dark:text-slate-400">
-                A multi-source PICO engine that auto-extracts keywords from any pasted abstract,
-                classifies hits at three tiers, and pulls live evidence from Europe PMC and OpenAlex —
-                all in your browser, instantly.
-              </p>
-
-              <div className="intro intro-delay-4 flex flex-wrap items-center gap-3 pt-1">
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-3 lg:min-w-[260px]">
                 <button
                   onClick={focusScanner}
-                  className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-black text-[11px] font-black uppercase tracking-[0.2em] hover:opacity-90 active:scale-95 transition-all shadow-[0_8px_30px_-8px_rgba(0,0,0,0.35)] dark:shadow-[0_8px_30px_-8px_rgba(255,255,255,0.25)]"
+                  className="px-5 py-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black text-[12px] font-black uppercase tracking-[0.18em] hover:opacity-90 active:scale-95 transition-all"
                 >
                   Start Scanning
                 </button>
                 <Link
                   href="/research"
-                  className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-full glass-soft text-neutral-700 dark:text-slate-200 text-[11px] font-black uppercase tracking-[0.2em] hover:text-[#00A598] active:scale-95 transition-all"
+                  className="px-5 py-3 rounded-xl border border-black/10 dark:border-white/10 bg-white/45 dark:bg-white/5 text-neutral-700 dark:text-slate-200 text-[12px] font-black uppercase tracking-[0.18em] hover:text-[#00A598] transition-colors text-center"
                 >
-                  Research Hub
-                  <span className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5">↗</span>
+                  Search Literature
                 </Link>
               </div>
-
-              <ul className="intro intro-delay-4 flex flex-wrap gap-x-5 gap-y-1 mt-1 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.25em] text-neutral-500 dark:text-slate-500">
-                {['Auto-Extract', 'Multi-Source', 'Auto-Classify', 'PICO Protocol'].map((f) => (
-                  <li key={f} className="flex items-center gap-1.5">
-                    <span className="text-[#00A598]">•</span> {f}
-                  </li>
-                ))}
-              </ul>
             </div>
 
-            {/* RIGHT: operator dashboard info card */}
-            <div className="intro intro-delay-3 lg:col-span-2 relative glass glass-sheen rounded-[24px] p-5 lg:p-6 flex flex-col gap-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.25em] text-neutral-500 dark:text-slate-500">
-                    Live Operations
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-black/5 dark:border-white/10 pt-4">
+              {[
+                ['Protocol', protocolStatusLine],
+                ['Research tab', 'Search Europe PMC and OpenAlex, then classify discovered papers with this same protocol.'],
+                ['Statistics tab', 'Run descriptive and inferential tests on extracted numeric data in your browser.'],
+              ].map(([label, text]) => (
+                <div key={label} className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/45 dark:bg-black/20 p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-neutral-500 dark:text-slate-500">
+                    {label}
                   </div>
-                  <div className="text-[14px] font-bold text-neutral-900 dark:text-white">
-                    Operator Dashboard
-                  </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                    {text}
+                  </p>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-[#00A598]/30 bg-[#00A598]/10 text-[#00A598]">
-                  <span className="dark:hidden">DAY_CYCLE</span>
-                  <span className="hidden dark:inline">NIGHT_CYCLE</span>
-                </span>
-              </div>
-
-              {/* Inner protocol card */}
-              <div className="glass-soft rounded-2xl p-4 flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-[13px] font-bold text-neutral-900 dark:text-white">
-                    <span className="text-base">🎯</span> Active Protocol
-                  </div>
-                  <time
-                    suppressHydrationWarning
-                    className="text-[10px] font-mono uppercase tracking-widest text-neutral-500 dark:text-slate-500"
-                  >
-                    {heroDateLabel}
-                  </time>
-                </div>
-                <div className="text-[12px] italic text-neutral-500 dark:text-slate-400 leading-relaxed">
-                  {protocolStatusLine}
-                </div>
-                <button
-                  onClick={focusScanner}
-                  className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-white/40 dark:bg-black/25 border border-black/5 dark:border-white/10 text-[12px] text-neutral-500 dark:text-slate-400 hover:text-neutral-800 dark:hover:text-white hover:border-[#00A598]/40 transition-all text-left"
-                >
-                  <span className="truncate">Deploy new abstract…</span>
-                  <span className="ml-auto text-[#00A598] font-black group-hover:translate-x-0.5 transition-transform">＋</span>
-                </button>
-              </div>
-
-              {/* Stat tiles */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="glass-soft rounded-xl p-3">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
-                    Sources
-                  </div>
-                  <div className="text-[18px] font-black text-neutral-900 dark:text-white mt-1 leading-none">2</div>
-                </div>
-                <div className="glass-soft rounded-xl p-3">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
-                    Mode
-                  </div>
-                  <div className="text-[14px] font-bold text-neutral-900 dark:text-white mt-1 leading-none">
-                    <span className="dark:hidden">Day</span>
-                    <span className="hidden dark:inline">Night</span>
-                  </div>
-                </div>
-                <div className="glass-soft rounded-xl p-3">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
-                    Status
-                  </div>
-                  <div className="text-[14px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 leading-none flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Nominal
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           </section>
 

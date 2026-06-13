@@ -55,10 +55,10 @@ const VERDICT_TONE: Record<Verdict, string> = {
 };
 
 const VERDICT_LABEL: Record<Verdict, string> = {
-  'INCLUDE / MAYBE': '🟩 Include / Maybe',
-  UNCLEAR: '⚠️ Unclear',
-  EXCLUDE: '🚩 Exclude',
-  NO_CRITERIA: '⚙ No criteria',
+  'INCLUDE / MAYBE': 'Include / Maybe',
+  UNCLEAR: 'Unclear',
+  EXCLUDE: 'Exclude',
+  NO_CRITERIA: 'No criteria',
 };
 
 const VERDICT_ORDER: Record<Verdict, number> = {
@@ -237,31 +237,12 @@ export default function ResearchPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
-      {/* atmosphere blobs */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="blob-a absolute top-[-12%] right-[6%] w-[60%] h-[60%] bg-gradient-to-br from-blue-400/25 to-purple-400/25 dark:from-blue-600/18 dark:to-[#00A598]/12 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-70"></div>
-        <div className="blob-b absolute bottom-[-12%] left-[2%] w-[52%] h-[52%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/14 dark:to-teal-600/14 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-55"></div>
-        <div className="blob-c absolute top-1/2 left-1/2 w-[46%] h-[46%] bg-gradient-to-br from-[#00A598]/22 to-blue-300/20 dark:from-[#00A598]/14 dark:to-blue-500/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-50"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.08),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.07),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.07),transparent_28%)]"></div>
       </div>
 
       {/* shared style block (mirrors main page essentials so this route stands alone) */}
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes blobDriftA {
-          0%, 100% { transform: translate(0,0) scale(1); }
-          50% { transform: translate(36px, 28px) scale(1.12); }
-        }
-        @keyframes blobDriftB {
-          0%, 100% { transform: translate(0,0) scale(1); }
-          50% { transform: translate(-44px, -26px) scale(1.08); }
-        }
-        @keyframes blobDriftC {
-          0%, 100% { transform: translate(-50%, -50%) scale(1); }
-          50% { transform: translate(-46%, -56%) scale(1.18); }
-        }
-        .blob-a { animation: blobDriftA 16s ease-in-out infinite; }
-        .blob-b { animation: blobDriftB 20s ease-in-out infinite; }
-        .blob-c { animation: blobDriftC 24s ease-in-out infinite; }
-
         .glass {
           background: linear-gradient(155deg, rgba(255,255,255,0.78), rgba(255,255,255,0.42));
           backdrop-filter: blur(26px) saturate(180%);
@@ -299,7 +280,7 @@ export default function ResearchPage() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .blob-a, .blob-b, .blob-c, .scan-shimmer::after { animation: none !important; }
+          .scan-shimmer::after { animation: none !important; }
         }
       `}} />
 
@@ -341,6 +322,38 @@ export default function ResearchPage() {
               Europe PMC{' + '}OpenAlex{' // '}
               <span className="text-[#00A598] font-bold">Auto-classify against your PICO</span>
             </p>
+          </section>
+
+          <section className="glass-soft rounded-2xl p-5 sm:p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-5 lg:gap-8">
+              <div>
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
+                  What this tab does
+                </p>
+                <h2 className="mt-2 text-[22px] sm:text-[26px] font-black tracking-tight text-neutral-900 dark:text-white">
+                  Find candidate papers, then classify them with your scanner protocol.
+                </h2>
+                <p className="mt-3 text-[13px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                  The Research tab builds a search from your inclusion keywords, queries Europe PMC and OpenAlex, removes duplicate records, then runs the same inclusion/exclusion logic used by the Scanner against each title and abstract.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
+                {[
+                  ['1. Query', 'Start from your saved protocol or edit the search string manually.'],
+                  ['2. Sources', 'Use Europe PMC and OpenAlex together, or turn one off for a focused run.'],
+                  ['3. Triage', 'Filter by Include / Maybe, Unclear, Exclude, or No criteria after results are classified.'],
+                ].map(([label, text]) => (
+                  <div key={label} className="rounded-xl border border-black/5 dark:border-white/10 bg-white/45 dark:bg-black/20 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                      {label}
+                    </div>
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                      {text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
 
           {/* Protocol summary */}

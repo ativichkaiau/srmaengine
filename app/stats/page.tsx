@@ -305,21 +305,11 @@ export default function StatsPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
-      {/* atmosphere */}
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="blob-a absolute top-[-12%] right-[6%] w-[60%] h-[60%] bg-gradient-to-br from-blue-400/25 to-purple-400/25 dark:from-blue-600/18 dark:to-[#00A598]/12 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-70"></div>
-        <div className="blob-b absolute bottom-[-12%] left-[2%] w-[52%] h-[52%] bg-gradient-to-tr from-pink-400/25 to-teal-300/25 dark:from-purple-600/14 dark:to-teal-600/14 rounded-full blur-[130px] mix-blend-multiply dark:mix-blend-screen opacity-80 dark:opacity-55"></div>
-        <div className="blob-c absolute top-1/2 left-1/2 w-[46%] h-[46%] bg-gradient-to-br from-[#00A598]/22 to-blue-300/20 dark:from-[#00A598]/14 dark:to-blue-500/10 rounded-full blur-[120px] mix-blend-multiply dark:mix-blend-screen opacity-70 dark:opacity-50"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(0,165,152,0.08),transparent_30%),radial-gradient(circle_at_90%_8%,rgba(59,130,246,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_14%_0%,rgba(0,165,152,0.07),transparent_30%),radial-gradient(circle_at_90%_8%,rgba(59,130,246,0.07),transparent_28%)]"></div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes blobDriftA { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(36px,28px) scale(1.12)} }
-        @keyframes blobDriftB { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-44px,-26px) scale(1.08)} }
-        @keyframes blobDriftC { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-46%,-56%) scale(1.18)} }
-        .blob-a { animation: blobDriftA 16s ease-in-out infinite; }
-        .blob-b { animation: blobDriftB 20s ease-in-out infinite; }
-        .blob-c { animation: blobDriftC 24s ease-in-out infinite; }
-
         .glass {
           background: linear-gradient(155deg, rgba(255,255,255,0.78), rgba(255,255,255,0.42));
           backdrop-filter: blur(26px) saturate(180%);
@@ -351,7 +341,7 @@ export default function StatsPage() {
           animation: scanShimmer 1.4s linear infinite;
         }
         @media (prefers-reduced-motion: reduce) {
-          .blob-a, .blob-b, .blob-c, .scan-shimmer::after { animation: none !important; }
+          .scan-shimmer::after { animation: none !important; }
         }
       `}} />
 
@@ -406,6 +396,38 @@ export default function StatsPage() {
               CPython · numpy · scipy.stats{' // '}
               <span className="text-[#00A598] font-bold">In-Browser Analysis</span>
             </p>
+          </section>
+
+          <section className="glass-soft rounded-2xl p-5 sm:p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] gap-5 lg:gap-8">
+              <div>
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
+                  What this tab does
+                </p>
+                <h2 className="mt-2 text-[22px] sm:text-[26px] font-black tracking-tight text-neutral-900 dark:text-white">
+                  Run quick statistical checks on extracted study data.
+                </h2>
+                <p className="mt-3 text-[13px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                  The Statistics tab runs descriptive summaries and common inferential tests locally in your browser using Pyodide, NumPy, and SciPy. It is designed for rapid checking while you screen and extract data, not for replacing a full analysis plan.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
+                {[
+                  ['1. Pick mode', 'Choose the test that matches your question and data shape.'],
+                  ['2. Paste values', 'Use comma, space, or newline-separated numbers; sample data can fill the expected format.'],
+                  ['3. Interpret', 'Review p-values, effect sizes, descriptive stats, and optional AI interpretation together.'],
+                ].map(([label, text]) => (
+                  <div key={label} className="rounded-xl border border-black/5 dark:border-white/10 bg-white/45 dark:bg-black/20 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
+                      {label}
+                    </div>
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                      {text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
 
           {/* Runtime status pill */}

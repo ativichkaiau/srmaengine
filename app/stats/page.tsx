@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
+import MobileTabBar from '@/components/MobileTabBar';
 import {
   getPyodide,
   parseNumbers,
@@ -887,6 +888,8 @@ export default function StatsPage() {
           )}
         </div>
       </main>
+
+      <MobileTabBar />
     </div>
   );
 }

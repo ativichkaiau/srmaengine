@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '../components/ThemeToggle';
+import MobileTabBar from '../components/MobileTabBar';
 
 type SmartMatch = {
   word: string;
@@ -653,7 +654,7 @@ export default function SRMATelemetryPage() {
           <div className="research-card custom-scrollbar relative z-10 mx-4 max-h-[calc(100vh-28px)] w-full max-w-[980px] overflow-y-auto rounded-[28px] border border-white/55 bg-white/[0.78] p-4 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.45)] backdrop-blur-3xl dark:border-white/10 dark:bg-[#090d10]/85 dark:shadow-[0_32px_100px_-42px_rgba(0,0,0,0.85)] sm:p-6 lg:p-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.34em] text-[#00A598]">
+                <p className="pr-24 sm:pr-0 font-mono text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.34em] text-[#00A598]">
                   Systematic Review Workspace
                 </p>
                 <h2 className="mt-2 text-[30px] font-black leading-none tracking-tighter text-neutral-950 dark:text-white sm:text-[44px] lg:text-[50px]">
@@ -1381,6 +1382,8 @@ export default function SRMATelemetryPage() {
           </div>
         </div>
       </main>
+
+      <MobileTabBar />
     </div>
   );
 }

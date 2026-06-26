@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
+import MobileTabBar from '@/components/MobileTabBar';
 import {
   classifyAbstract,
   keywordToRegexSource,
@@ -626,6 +627,8 @@ export default function ResearchPage() {
           )}
         </div>
       </main>
+
+      <MobileTabBar />
     </div>
   );
 }

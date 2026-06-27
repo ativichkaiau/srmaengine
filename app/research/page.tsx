@@ -237,38 +237,13 @@ export default function ResearchPage() {
   const anyLoading = status.europepmc.loading || status.openalex.loading;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
+    <div className="min-h-screen flex flex-col bg-background text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.08),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.07),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.07),transparent_28%)]"></div>
       </div>
 
       {/* shared style block (mirrors main page essentials so this route stands alone) */}
       <style dangerouslySetInnerHTML={{ __html: `
-        .glass {
-          background: linear-gradient(155deg, rgba(255,255,255,0.78), rgba(255,255,255,0.42));
-          backdrop-filter: blur(26px) saturate(180%);
-          -webkit-backdrop-filter: blur(26px) saturate(180%);
-          border: 1px solid rgba(255,255,255,0.65);
-          box-shadow: 0 12px 40px -12px rgba(15,23,42,0.18), inset 0 1px 0 rgba(255,255,255,0.85);
-        }
-        .dark .glass {
-          background: linear-gradient(155deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015));
-          border: 1px solid rgba(255,255,255,0.10);
-          box-shadow: 0 20px 50px -16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
-        }
-        .glass-soft {
-          background: linear-gradient(155deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
-          backdrop-filter: blur(18px) saturate(160%);
-          -webkit-backdrop-filter: blur(18px) saturate(160%);
-          border: 1px solid rgba(255,255,255,0.6);
-          box-shadow: 0 6px 22px -10px rgba(15,23,42,0.14), inset 0 1px 0 rgba(255,255,255,0.7);
-        }
-        .dark .glass-soft {
-          background: linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012));
-          border: 1px solid rgba(255,255,255,0.08);
-          box-shadow: 0 10px 30px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
-        }
-
         @keyframes scanShimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
@@ -286,19 +261,19 @@ export default function ResearchPage() {
       `}} />
 
       {/* Header */}
-      <header className="h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 bg-white/60 dark:bg-black/40 backdrop-blur-2xl z-50 border-b border-black/5 dark:border-white/5 transition-colors duration-700">
+      <header className="clay-header h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 z-50 transition-colors duration-700">
         <div className="flex items-center gap-4 lg:gap-8">
           <Link href="/" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-7 h-7 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center text-[14px]">V</div>
+            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[14px]">V</div>
             <div className="flex items-baseline">
               <span>VESTRIPPN</span>
               <span className="text-blue-600 dark:text-blue-400">3.0</span>
             </div>
           </Link>
-          <nav className="hidden sm:flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest">
-            <Link href="/" className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors">Scanner</Link>
-            <span className="px-3 py-1.5 rounded-lg bg-[#00A598]/10 text-[#00A598] border border-[#00A598]/30">Research</span>
-            <Link href="/stats" className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors">Statistics</Link>
+          <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
+            <Link href="/" className="clay-tab px-3 py-1.5 rounded-lg">Scanner</Link>
+            <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Research</span>
+            <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
           </nav>
         </div>
         <div className="flex gap-4 lg:gap-6 items-center">
@@ -325,7 +300,7 @@ export default function ResearchPage() {
             </p>
           </section>
 
-          <section className="glass-soft rounded-2xl p-5 sm:p-6">
+          <section className="clay-soft rounded-2xl p-5 sm:p-6">
             <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-5 lg:gap-8">
               <div>
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
@@ -340,11 +315,11 @@ export default function ResearchPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
                 {[
-                  ['1. Query', 'Start from your saved protocol or edit the search string manually.'],
-                  ['2. Sources', 'Use Europe PMC and OpenAlex together, or turn one off for a focused run.'],
-                  ['3. Triage', 'Filter by Include / Maybe, Unclear, Exclude, or No criteria after results are classified.'],
-                ].map(([label, text]) => (
-                  <div key={label} className="rounded-xl border border-black/5 dark:border-white/10 bg-white/45 dark:bg-black/20 p-3">
+                  ['1. Query', 'Start from your saved protocol or edit the search string manually.', 'clay-mint'],
+                  ['2. Sources', 'Use Europe PMC and OpenAlex together, or turn one off for a focused run.', 'clay-sky'],
+                  ['3. Triage', 'Filter by Include / Maybe, Unclear, Exclude, or No criteria after results are classified.', 'clay-lilac'],
+                ].map(([label, text, tone]) => (
+                  <div key={label} className={`clay-soft ${tone} rounded-xl p-3`}>
                     <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
                       {label}
                     </div>
@@ -358,7 +333,7 @@ export default function ResearchPage() {
           </section>
 
           {/* Protocol summary */}
-          <div className="glass-soft p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+          <div className="clay-soft p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <span className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">Active Protocol</span>
               <span className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 rounded-lg px-2.5 py-1">
@@ -375,14 +350,14 @@ export default function ResearchPage() {
             </div>
             <Link
               href="/"
-              className="text-[11px] font-bold uppercase tracking-widest text-[#00A598] hover:underline"
+              className="clay-button rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-widest"
             >
-              ↩ Edit on Scanner
+              Edit on Scanner
             </Link>
           </div>
 
           {/* Query controls */}
-          <div className="glass p-6 rounded-2xl space-y-5 relative">
+          <div className="clay p-6 rounded-2xl space-y-5 relative">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-blue-500"></span>
@@ -390,9 +365,9 @@ export default function ResearchPage() {
               </h2>
               <button
                 onClick={() => setQuery(buildQueryFromKeywords(protocol.positive))}
-                className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 hover:text-[#00A598] transition-colors"
+                className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
-                ↻ Reset from Protocol
+                Reset from Protocol
               </button>
             </div>
 
@@ -400,7 +375,7 @@ export default function ResearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder='e.g.  "vaginal estrogen" AND "recurrent urinary tract infection"'
-              className="w-full h-20 p-4 bg-white/70 dark:bg-black/30 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none transition-all resize-none custom-scrollbar"
+              className="clay-field w-full h-20 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none transition-all resize-none custom-scrollbar"
             />
 
             <div className="flex flex-wrap items-center gap-4">
@@ -410,10 +385,10 @@ export default function ResearchPage() {
                   <button
                     key={src}
                     onClick={() => setEnabled((e) => ({ ...e, [src]: !e[src] }))}
-                    className={`px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all ${
+                    className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                       enabled[src]
-                        ? SOURCE_META[src].tone
-                        : 'bg-white/30 dark:bg-white/5 text-neutral-400 dark:text-slate-500 border-black/10 dark:border-white/10'
+                        ? `clay-tab-active ${SOURCE_META[src].tone}`
+                        : 'clay-button text-neutral-400 dark:text-slate-500'
                     }`}
                   >
                     {enabled[src] ? '✓ ' : ''}
@@ -432,17 +407,16 @@ export default function ResearchPage() {
                   max={50}
                   value={pageSize}
                   onChange={(e) => setPageSize(Math.max(5, Math.min(50, +e.target.value || 25)))}
-                  className="w-16 px-2 py-1.5 text-[12px] font-bold bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-lg text-center focus:outline-none focus:border-[#00A598]"
+                  className="clay-field w-16 px-2 py-1.5 text-[12px] font-bold rounded-lg text-center focus:outline-none"
                 />
               </div>
 
               <button
                 onClick={handleSearch}
                 disabled={!query.trim() || anyLoading || (!enabled.europepmc && !enabled.openalex)}
-                className="ml-auto group relative px-5 py-2.5 overflow-hidden bg-gradient-to-r from-[#00A598] via-[#00b3a5] to-[#0098b8] hover:from-[#009085] hover:to-[#0087a5] disabled:from-neutral-200 disabled:via-neutral-200 disabled:to-neutral-200 dark:disabled:from-white/5 dark:disabled:via-white/5 dark:disabled:to-white/5 disabled:text-neutral-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[13px] font-bold rounded-xl transition-all shadow-[0_6px_22px_-4px_rgba(0,165,152,0.5)] dark:shadow-[0_0_22px_rgba(0,165,152,0.35)] disabled:shadow-none active:scale-[0.98]"
+                className="clay-primary ml-auto px-5 py-2.5 disabled:cursor-not-allowed text-[13px] font-bold rounded-xl active:scale-[0.98]"
               >
-                <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent disabled:hidden"></span>
-                <span className="relative">{anyLoading ? 'Fetching…' : 'Run Multi-Source Search'}</span>
+                {anyLoading ? 'Fetching…' : 'Run Multi-Source Search'}
               </button>
             </div>
 
@@ -490,7 +464,7 @@ export default function ResearchPage() {
                       key={k}
                       onClick={() => setFilter(k)}
                       className={`px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all ${baseTone} ${
-                        active ? 'ring-2 ring-[#00A598]/40' : 'opacity-80 hover:opacity-100'
+                        active ? 'clay-tab-active' : 'clay-button opacity-80 hover:opacity-100'
                       }`}
                     >
                       {k === 'ALL' ? 'All' : VERDICT_LABEL[k as Verdict]}{' '}
@@ -501,7 +475,7 @@ export default function ResearchPage() {
               </div>
 
               {filtered.length === 0 && !anyLoading ? (
-                <div className="glass-soft p-8 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400">
+                <div className="clay-soft p-8 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400">
                   No results match the current filter.
                 </div>
               ) : (
@@ -511,7 +485,7 @@ export default function ResearchPage() {
                     return (
                       <li
                         key={`${h.id}-${i}`}
-                        className="glass-soft p-5 rounded-2xl flex flex-col gap-3"
+                        className="clay-soft p-5 rounded-2xl flex flex-col gap-3"
                       >
                         <div className="flex flex-wrap items-center gap-2">
                           <span
@@ -606,7 +580,7 @@ export default function ResearchPage() {
           )}
 
           {!hasSearched && (
-            <div className="glass-soft p-8 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
+            <div className="clay-soft p-8 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
               Enter a query above (or use{' '}
               <span className="font-bold">Reset from Protocol</span> to derive one
               from your inclusion keywords) and run a multi-source search. Each

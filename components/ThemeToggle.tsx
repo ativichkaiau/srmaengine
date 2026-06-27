@@ -66,7 +66,7 @@ export default function ThemeToggle() {
   // Prevent rendering mismatched UI during SSR.
   if (!mounted) {
     return (
-      <div className="w-[80px] h-[40px] rounded-full bg-black/5 dark:bg-white/5 animate-pulse"></div>
+      <div className="clay-soft w-[80px] h-[40px] rounded-full animate-pulse"></div>
     );
   }
 
@@ -75,7 +75,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={cycle}
-      className="relative px-4 py-1.5 bg-black/5 dark:bg-white/[0.03] border border-black/10 dark:border-white/10 rounded-full flex flex-col items-center justify-center leading-none cursor-pointer hover:bg-black/10 dark:hover:bg-white/[0.06] transition-all duration-500 overflow-hidden group active:scale-95 shadow-sm"
+      className="clay-button relative px-4 py-1.5 rounded-full flex flex-col items-center justify-center leading-none cursor-pointer duration-500 overflow-hidden group active:scale-95"
       aria-label={`Theme mode: ${mode}. Click to change.`}
       title={
         mode === 'auto'
@@ -83,15 +83,6 @@ export default function ThemeToggle() {
           : `Manual ${mode === 'dark' ? 'Night' : 'Day'}`
       }
     >
-      {/* Ambient background glow that shifts with the resolved theme */}
-      <div
-        className={`absolute inset-0 opacity-20 transition-all duration-700 ease-in-out ${
-          resolvedDark
-            ? 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-500/50 via-transparent to-transparent translate-x-4'
-            : 'bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/50 via-transparent to-transparent -translate-x-4'
-        }`}
-      />
-
       {/* Static Label */}
       <span className="text-[8px] text-neutral-500 dark:text-slate-500 font-black uppercase tracking-widest mb-0.5 relative z-10 transition-colors duration-500">
         Mode

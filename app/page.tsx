@@ -532,7 +532,7 @@ export default function SRMATelemetryPage() {
 
   // --- UI RENDER ---
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
+    <div className="min-h-screen flex flex-col bg-background text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
 
       {/* CUSTOM ANIMATION STYLES */}
       <style dangerouslySetInnerHTML={{ __html: `
@@ -579,50 +579,6 @@ export default function SRMATelemetryPage() {
         .review-sweep { animation: reviewSweep 3s cubic-bezier(0.5, 0, 0.2, 1) infinite; }
         .progress-ignite { animation: progressIgnite 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
-        /* --- Premium glass surface --- */
-        .glass {
-          background: linear-gradient(155deg, rgba(255,255,255,0.78), rgba(255,255,255,0.42));
-          backdrop-filter: blur(26px) saturate(180%);
-          -webkit-backdrop-filter: blur(26px) saturate(180%);
-          border: 1px solid rgba(255,255,255,0.65);
-          box-shadow: 0 12px 40px -12px rgba(15,23,42,0.18), inset 0 1px 0 rgba(255,255,255,0.85);
-        }
-        .dark .glass {
-          background: linear-gradient(155deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015));
-          border: 1px solid rgba(255,255,255,0.10);
-          box-shadow: 0 20px 50px -16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
-        }
-        .glass-soft {
-          background: linear-gradient(155deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
-          backdrop-filter: blur(18px) saturate(160%);
-          -webkit-backdrop-filter: blur(18px) saturate(160%);
-          border: 1px solid rgba(255,255,255,0.6);
-          box-shadow: 0 6px 22px -10px rgba(15,23,42,0.14), inset 0 1px 0 rgba(255,255,255,0.7);
-        }
-        .dark .glass-soft {
-          background: linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012));
-          border: 1px solid rgba(255,255,255,0.08);
-          box-shadow: 0 10px 30px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
-        }
-        /* Subtle top sheen highlight for the hero engine box */
-        .glass-sheen::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: inherit;
-          padding: 1px;
-          background: linear-gradient(140deg, rgba(255,255,255,0.9), transparent 38%);
-          -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          -webkit-mask-composite: xor;
-          mask-composite: exclude;
-          pointer-events: none;
-          opacity: 0.7;
-        }
-        .dark .glass-sheen::before {
-          background: linear-gradient(140deg, rgba(255,255,255,0.22), transparent 38%);
-          opacity: 0.6;
-        }
-
         @media (prefers-reduced-motion: reduce) {
           .intro, .intro-atmosphere, .research-card, .research-panel, .research-row, .progress-ignite {
             animation: none !important;
@@ -638,7 +594,7 @@ export default function SRMATelemetryPage() {
       {introVisible && (
         <div
           key={`srma-research-${introTick}`}
-          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-[#FAFAFA] dark:bg-[#050505] transition-opacity duration-700 ${
+          className={`fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-background text-foreground transition-opacity duration-700 ${
             introLeaving ? 'opacity-0 pointer-events-none' : 'opacity-100'
           }`}
         >
@@ -646,12 +602,12 @@ export default function SRMATelemetryPage() {
 
           <button
             onClick={closeIntro}
-            className="absolute right-4 top-4 sm:right-8 sm:top-7 z-20 rounded-full border border-black/10 dark:border-white/10 bg-white/50 dark:bg-white/5 px-4 py-2 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.18em] text-neutral-500 dark:text-slate-300 backdrop-blur-xl transition-all hover:border-[#00A598]/50 hover:text-[#00A598] active:scale-95"
+            className="clay-button absolute right-4 top-4 sm:right-8 sm:top-7 z-20 rounded-full px-4 py-2 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.18em] text-neutral-500 dark:text-slate-300 active:scale-95"
           >
             Skip Intro
           </button>
 
-          <div className="research-card custom-scrollbar relative z-10 mx-4 max-h-[calc(100vh-28px)] w-full max-w-[980px] overflow-y-auto rounded-[28px] border border-white/55 bg-white/[0.78] p-4 shadow-[0_28px_90px_-40px_rgba(15,23,42,0.45)] backdrop-blur-3xl dark:border-white/10 dark:bg-[#090d10]/85 dark:shadow-[0_32px_100px_-42px_rgba(0,0,0,0.85)] sm:p-6 lg:p-8">
+          <div className="research-card clay custom-scrollbar relative z-10 mx-4 max-h-[calc(100vh-28px)] w-full max-w-[980px] overflow-y-auto rounded-[28px] p-4 sm:p-6 lg:p-8">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="pr-24 sm:pr-0 font-mono text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.34em] text-[#00A598]">
@@ -682,7 +638,7 @@ export default function SRMATelemetryPage() {
               </div>
             </div>
 
-            <div className="research-panel relative mt-5 overflow-hidden rounded-[22px] border border-black/10 bg-neutral-950/[0.025] p-4 shadow-inner dark:border-white/10 dark:bg-black/25 sm:p-5">
+            <div className="research-panel clay-inset relative mt-5 overflow-hidden rounded-[22px] p-4 sm:p-5">
               <div className="review-sweep absolute left-0 right-0 top-0 h-20 bg-gradient-to-b from-transparent via-[#00A598]/10 to-transparent"></div>
 
               <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.1fr]">
@@ -899,7 +855,7 @@ export default function SRMATelemetryPage() {
                   <button
                     onClick={() => setIntroStep((s) => Math.max(0, s - 1))}
                     disabled={introStep === 0}
-                    className="rounded-full border border-black/10 bg-white/40 px-6 py-3 text-[13px] font-black text-neutral-600 backdrop-blur-xl transition-all hover:bg-white/70 disabled:cursor-not-allowed disabled:opacity-35 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                    className="clay-button rounded-full px-6 py-3 text-[13px] font-black text-neutral-600 disabled:cursor-not-allowed disabled:opacity-35 dark:text-slate-300"
                   >
                     Back
                   </button>
@@ -911,7 +867,7 @@ export default function SRMATelemetryPage() {
                       }
                       setIntroStep((s) => Math.min(INTRO_SCENES.length - 1, s + 1));
                     }}
-                    className="rounded-full bg-gradient-to-r from-[#00A598] via-blue-500 to-violet-500 px-7 py-3 text-[13px] font-black text-white shadow-[0_10px_30px_-12px_rgba(0,165,152,0.75)] transition-all hover:translate-y-[-1px] hover:shadow-[0_16px_38px_-14px_rgba(59,130,246,0.85)] active:scale-95"
+                    className="clay-primary rounded-full px-7 py-3 text-[13px] font-black active:scale-95"
                   >
                     {isLastIntroStep ? 'Begin' : 'Next'}
                   </button>
@@ -928,19 +884,19 @@ export default function SRMATelemetryPage() {
       </div>
 
       {/* MINIMALIST HEADER */}
-      <header className="intro intro-delay-1 h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 bg-white/60 dark:bg-black/40 backdrop-blur-2xl z-50 border-b border-black/5 dark:border-white/5 transition-colors duration-700">
+      <header className="intro intro-delay-1 clay-header h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 z-50 transition-colors duration-700">
         <div className="flex items-center gap-4 lg:gap-8">
           <Link href="/" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-7 h-7 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center text-[14px] transition-colors duration-700">V</div>
+            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[14px]">V</div>
             <div className="flex items-baseline">
               <span>VESTRIPPN</span>
               <span className="text-blue-600 dark:text-blue-400 transition-colors duration-700">3.0</span>
             </div>
           </Link>
-          <nav className="hidden sm:flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest">
-            <span className="px-3 py-1.5 rounded-lg bg-[#00A598]/10 text-[#00A598] border border-[#00A598]/30">Scanner</span>
-            <Link href="/research" className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors">Research</Link>
-            <Link href="/stats" className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors">Statistics</Link>
+          <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
+            <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Scanner</span>
+            <Link href="/research" className="clay-tab px-3 py-1.5 rounded-lg">Research</Link>
+            <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
           </nav>
         </div>
 
@@ -954,7 +910,7 @@ export default function SRMATelemetryPage() {
         <div className="max-w-[1120px] mx-auto space-y-6 lg:space-y-8">
 
           {/* HERO SECTION */}
-          <section className="intro intro-delay-2 glass-soft rounded-[24px] p-5 sm:p-7 lg:p-8 flex flex-col gap-5">
+          <section className="intro intro-delay-2 clay-soft rounded-[24px] p-5 sm:p-7 lg:p-8 flex flex-col gap-5">
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
               <div className="max-w-3xl">
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
@@ -971,13 +927,13 @@ export default function SRMATelemetryPage() {
               <div className="flex flex-col sm:flex-row lg:flex-col gap-3 lg:min-w-[260px]">
                 <button
                   onClick={focusScanner}
-                  className="px-5 py-3 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black text-[12px] font-black uppercase tracking-[0.18em] hover:opacity-90 active:scale-95 transition-all"
+                  className="clay-primary px-5 py-3 rounded-xl text-[12px] font-black uppercase tracking-[0.18em] active:scale-95"
                 >
                   Start Scanning
                 </button>
                 <Link
                   href="/research"
-                  className="px-5 py-3 rounded-xl border border-black/10 dark:border-white/10 bg-white/45 dark:bg-white/5 text-neutral-700 dark:text-slate-200 text-[12px] font-black uppercase tracking-[0.18em] hover:text-[#00A598] transition-colors text-center"
+                  className="clay-button px-5 py-3 rounded-xl text-[12px] font-black uppercase tracking-[0.18em] text-center"
                 >
                   Search Literature
                 </Link>
@@ -986,11 +942,11 @@ export default function SRMATelemetryPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-black/5 dark:border-white/10 pt-4">
               {[
-                ['Protocol', protocolStatusLine],
-                ['Research tab', 'Search Europe PMC and OpenAlex, then classify discovered papers with this same protocol.'],
-                ['Statistics tab', 'Run descriptive and inferential tests on extracted numeric data in your browser.'],
-              ].map(([label, text]) => (
-                <div key={label} className="rounded-2xl border border-black/5 dark:border-white/10 bg-white/45 dark:bg-black/20 p-4">
+                ['Protocol', protocolStatusLine, 'clay-mint'],
+                ['Research tab', 'Search Europe PMC and OpenAlex, then classify discovered papers with this same protocol.', 'clay-sky'],
+                ['Statistics tab', 'Run descriptive and inferential tests on extracted numeric data in your browser.', 'clay-lilac'],
+              ].map(([label, text, tone]) => (
+                <div key={label} className={`clay-soft ${tone} rounded-2xl p-4`}>
                   <div className="text-[10px] font-black uppercase tracking-[0.22em] text-neutral-500 dark:text-slate-500">
                     {label}
                   </div>
@@ -1003,7 +959,7 @@ export default function SRMATelemetryPage() {
           </section>
 
           {/* THE ENGINE (Bento Box Wrapper) */}
-          <div id="engine" className="intro intro-delay-4 relative glass glass-sheen flex flex-col rounded-[24px] lg:rounded-[32px] p-5 lg:p-8 transition-all duration-700 scroll-mt-24">
+          <div id="engine" className="intro intro-delay-4 relative clay clay-sheen flex flex-col rounded-[24px] lg:rounded-[32px] p-5 lg:p-8 transition-all duration-700 scroll-mt-24">
 
             {/* Dynamic Protocol Editor Header */}
             <div className="flex justify-between items-center mb-6 px-1">
@@ -1013,10 +969,10 @@ export default function SRMATelemetryPage() {
               </h2>
               <button
                 onClick={() => setIsEditingProtocol(!isEditingProtocol)}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all ${
+                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                   isEditingProtocol
-                    ? 'bg-[#00A598]/10 dark:bg-[#00A598]/20 text-[#00A598] border-[#00A598]/30 dark:border-[#00A598]/50'
-                    : 'bg-white dark:bg-white/5 text-neutral-500 dark:text-slate-400 border-black/10 dark:border-white/10 hover:bg-neutral-50 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white'
+                    ? 'clay-tab-active'
+                    : 'clay-button text-neutral-500 dark:text-slate-400'
                 }`}
               >
                 {isEditingProtocol ? 'Close Editor' : '⚙ Manual Protocol'}
@@ -1025,7 +981,7 @@ export default function SRMATelemetryPage() {
 
             {/* Protocol Editor Panel (manual fallback — starts empty) */}
             {isEditingProtocol && (
-              <div className="mb-6 p-5 bg-white dark:bg-black/50 border border-black/5 dark:border-white/10 rounded-2xl shadow-sm dark:shadow-none animate-in fade-in slide-in-from-top-2 transition-colors duration-700">
+              <div className="clay-soft mb-6 p-5 rounded-2xl animate-in fade-in slide-in-from-top-2 transition-colors duration-700">
                 <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white mb-4 border-b border-black/5 dark:border-white/10 pb-2 transition-colors">Manual Protocol Override</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
@@ -1034,7 +990,7 @@ export default function SRMATelemetryPage() {
                       Inclusion Keywords (Comma Separated)
                     </label>
                     <textarea
-                      className="w-full h-32 p-3 bg-neutral-50 dark:bg-white/5 text-neutral-700 dark:text-slate-300 font-mono text-[12px] border border-black/5 dark:border-white/10 rounded-xl focus:border-emerald-500 focus:outline-none custom-scrollbar transition-colors"
+                      className="clay-field w-full h-32 p-3 text-neutral-700 dark:text-slate-300 font-mono text-[12px] rounded-xl focus:outline-none custom-scrollbar transition-colors"
                       placeholder="Empty — populate from suggestions or type here"
                       value={posInput}
                       onChange={(e) => setPosInput(e.target.value)}
@@ -1045,7 +1001,7 @@ export default function SRMATelemetryPage() {
                       Exclusion Keywords (Comma Separated)
                     </label>
                     <textarea
-                      className="w-full h-32 p-3 bg-neutral-50 dark:bg-white/5 text-neutral-700 dark:text-slate-300 font-mono text-[12px] border border-black/5 dark:border-white/10 rounded-xl focus:border-red-500 focus:outline-none custom-scrollbar transition-colors"
+                      className="clay-field w-full h-32 p-3 text-neutral-700 dark:text-slate-300 font-mono text-[12px] rounded-xl focus:outline-none custom-scrollbar transition-colors"
                       placeholder="Empty — populate from suggestions or type here"
                       value={negInput}
                       onChange={(e) => setNegInput(e.target.value)}
@@ -1059,13 +1015,13 @@ export default function SRMATelemetryPage() {
                       setPosInput('');
                       setNegInput('');
                     }}
-                    className="px-4 py-2 text-[12px] font-bold text-neutral-500 dark:text-slate-400 hover:text-neutral-800 dark:hover:text-white transition-colors"
+                    className="clay-button px-4 py-2 rounded-lg text-[12px] font-bold text-neutral-500 dark:text-slate-400"
                   >
                     Clear All
                   </button>
                   <button
                     onClick={handleApplyProtocol}
-                    className="px-5 py-2 bg-[#00A598] hover:bg-[#008f83] text-white text-[12px] font-bold rounded-lg transition-all shadow-sm dark:shadow-[0_0_10px_rgba(0,165,152,0.3)]"
+                    className="clay-primary px-5 py-2 text-[12px] font-bold rounded-lg"
                   >
                     Save Protocol
                   </button>
@@ -1076,7 +1032,7 @@ export default function SRMATelemetryPage() {
             {/* Input Form */}
             <div className="space-y-4">
               <textarea
-                className="w-full h-48 p-5 bg-white/70 dark:bg-black/30 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none transition-all resize-none shadow-[inset_0_1px_3px_rgba(0,0,0,0.04)] dark:shadow-none custom-scrollbar"
+                className="clay-field w-full h-48 p-5 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:outline-none transition-all resize-none custom-scrollbar"
                 placeholder="Paste the target abstract here — keywords are auto-extracted as you type..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
@@ -1084,7 +1040,7 @@ export default function SRMATelemetryPage() {
 
               {/* AUTO-SUGGEST + CLASSIFICATION PANEL */}
               {!isEditingProtocol && inputText.trim().length > 0 && (
-                <div className="glass-soft p-5 rounded-2xl transition-all space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="clay-soft p-5 rounded-2xl transition-all space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white flex items-center gap-2 transition-colors">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#00A598]"></span>
@@ -1100,7 +1056,7 @@ export default function SRMATelemetryPage() {
                       {suggestions.map((word) => (
                         <span
                           key={word}
-                          className="group inline-flex items-center gap-1 bg-neutral-50 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-lg pl-2.5 pr-1 py-1 text-[11px] font-semibold text-neutral-600 dark:text-slate-300 transition-colors"
+                          className="clay-button group inline-flex items-center gap-1 rounded-lg pl-2.5 pr-1 py-1 text-[11px] font-semibold text-neutral-600 dark:text-slate-300"
                         >
                           <span className="truncate max-w-[180px]">{word}</span>
                           <button
@@ -1198,17 +1154,16 @@ export default function SRMATelemetryPage() {
               <div className="flex gap-4">
                 <button
                   onClick={handleClear}
-                  className="px-6 py-3.5 glass-soft hover:bg-white/90 dark:hover:bg-white/10 text-neutral-600 dark:text-slate-300 text-sm font-bold rounded-xl transition-all active:scale-95"
+                  className="clay-button px-6 py-3.5 text-neutral-600 dark:text-slate-300 text-sm font-bold rounded-xl active:scale-95"
                 >
                   Clear Cache
                 </button>
                 <button
                   onClick={handleScan}
                   disabled={!inputText.trim() || isEditingProtocol}
-                  className="group relative flex-1 py-3.5 overflow-hidden bg-gradient-to-r from-[#00A598] via-[#00b3a5] to-[#0098b8] hover:from-[#009085] hover:to-[#0087a5] disabled:from-neutral-200 disabled:via-neutral-200 disabled:to-neutral-200 dark:disabled:from-white/5 dark:disabled:via-white/5 dark:disabled:to-white/5 disabled:text-neutral-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-all shadow-[0_6px_22px_-4px_rgba(0,165,152,0.5)] dark:shadow-[0_0_22px_rgba(0,165,152,0.35)] disabled:shadow-none active:scale-[0.98]"
+                  className="clay-primary flex-1 py-3.5 disabled:cursor-not-allowed text-sm font-bold rounded-xl active:scale-[0.98]"
                 >
-                  <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent disabled:hidden"></span>
-                  <span className="relative">Execute Smart Scan</span>
+                  Execute Smart Scan
                 </button>
               </div>
             </div>
@@ -1218,7 +1173,7 @@ export default function SRMATelemetryPage() {
               <div className="mt-8 pt-8 border-t border-black/5 dark:border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
 
                 {/* TIER 1 — ABSTRACT-LEVEL VERDICT */}
-                <div className={`flex flex-col items-center justify-center p-6 rounded-2xl border transition-colors ${decisionBannerClass}`}>
+                <div className={`clay-inset flex flex-col items-center justify-center p-6 rounded-2xl transition-colors ${decisionBannerClass}`}>
                   <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-3 text-center">
                     {decisionLabel}
                   </h1>
@@ -1242,7 +1197,7 @@ export default function SRMATelemetryPage() {
                     { label: 'Sentences', value: scan.sentenceCount, accent: 'text-blue-600 dark:text-blue-400' },
                     { label: 'Words', value: scan.tokenCount, accent: 'text-neutral-600 dark:text-slate-300' },
                   ].map((stat) => (
-                    <div key={stat.label} className="glass-soft p-4 rounded-xl text-center transition-all hover:-translate-y-0.5">
+                    <div key={stat.label} className="clay-soft p-4 rounded-xl text-center transition-all hover:-translate-y-0.5">
                       <div className={`text-2xl font-black ${stat.accent}`}>{stat.value}</div>
                       <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 dark:text-slate-500 mt-1">{stat.label}</div>
                     </div>
@@ -1250,7 +1205,7 @@ export default function SRMATelemetryPage() {
                 </div>
 
                 {/* TIER 2 — SENTENCE DRILL-DOWN */}
-                <div className="glass-soft rounded-2xl transition-all overflow-hidden">
+                <div className="clay-soft rounded-2xl transition-all overflow-hidden">
                   <button
                     onClick={() => setShowSentences((v) => !v)}
                     className="w-full flex items-center justify-between p-5 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
@@ -1368,7 +1323,7 @@ export default function SRMATelemetryPage() {
                 </div>
 
                 {/* Full Context Viewer */}
-                <div className="glass-soft p-5 rounded-2xl transition-all">
+                <div className="clay-soft p-5 rounded-2xl transition-all">
                   <h4 className="font-bold text-[13px] text-neutral-600 dark:text-slate-300 mb-3 flex justify-between items-center tracking-tight transition-colors">
                     Full Context Viewer
                     <span className="text-[9px] bg-neutral-100 dark:bg-black/50 px-2 py-1 rounded border border-black/5 dark:border-white/5 uppercase tracking-widest text-neutral-500 dark:text-slate-500">Telemetry Feed</span>

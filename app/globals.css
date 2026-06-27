@@ -4,14 +4,35 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #eaf1ef;
+  --foreground: #17201f;
+  --clay-surface: #f2f7f5;
+  --clay-surface-soft: #e4ece9;
+  --clay-surface-inset: #dfe8e5;
+  --clay-highlight: rgba(255, 255, 255, 0.95);
+  --clay-shadow: rgba(91, 112, 107, 0.28);
+  --clay-border: rgba(255, 255, 255, 0.68);
+  --clay-accent: #0b9d91;
+  --clay-accent-strong: #087f76;
+  --clay-mint: #d8eee6;
+  --clay-sky: #dceaf5;
+  --clay-lilac: #e7e1f2;
 }
 
-/* 2. Map the manual toggle switch to your base CSS variables */
 :root.dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #151a1a;
+  --foreground: #edf4f2;
+  --clay-surface: #232a2a;
+  --clay-surface-soft: #1d2323;
+  --clay-surface-inset: #171c1c;
+  --clay-highlight: rgba(72, 85, 83, 0.42);
+  --clay-shadow: rgba(0, 0, 0, 0.62);
+  --clay-border: rgba(255, 255, 255, 0.07);
+  --clay-accent: #35c5b7;
+  --clay-accent-strong: #27a89c;
+  --clay-mint: #213b36;
+  --clay-sky: #253846;
+  --clay-lilac: #352f43;
 }
 
 @theme inline {
@@ -24,5 +45,158 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.clay {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--clay-surface) 92%, white 8%), var(--clay-surface));
+  border: 1px solid var(--clay-border);
+  box-shadow:
+    13px 13px 28px var(--clay-shadow),
+    -10px -10px 24px var(--clay-highlight),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.clay-soft {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--clay-surface-soft) 91%, white 9%), var(--clay-surface-soft));
+  border: 1px solid color-mix(in srgb, var(--clay-border) 72%, transparent);
+  box-shadow:
+    8px 8px 18px color-mix(in srgb, var(--clay-shadow) 78%, transparent),
+    -7px -7px 17px color-mix(in srgb, var(--clay-highlight) 82%, transparent),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.30);
+}
+
+.clay-inset {
+  background: var(--clay-surface-inset);
+  border: 1px solid color-mix(in srgb, var(--clay-shadow) 28%, transparent);
+  box-shadow:
+    inset 5px 5px 12px color-mix(in srgb, var(--clay-shadow) 72%, transparent),
+    inset -5px -5px 12px color-mix(in srgb, var(--clay-highlight) 65%, transparent);
+}
+
+.clay-header {
+  background: color-mix(in srgb, var(--clay-surface) 88%, transparent);
+  border-bottom: 1px solid var(--clay-border);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--clay-shadow) 38%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.clay-bottom-nav {
+  border-top: 1px solid var(--clay-border);
+  border-bottom: 0;
+  box-shadow: 0 -8px 24px color-mix(in srgb, var(--clay-shadow) 42%, transparent);
+}
+
+.clay-tab {
+  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--foreground) 62%, transparent);
+  transition: color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.clay-tab:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--clay-surface-soft) 72%, transparent);
+}
+
+.clay-tab-active {
+  color: var(--clay-accent-strong);
+  background: var(--clay-surface-soft);
+  border-color: var(--clay-border);
+  box-shadow:
+    inset 3px 3px 7px color-mix(in srgb, var(--clay-shadow) 55%, transparent),
+    inset -3px -3px 7px color-mix(in srgb, var(--clay-highlight) 64%, transparent);
+}
+
+.clay-field {
+  background: var(--clay-surface-inset);
+  border: 1px solid color-mix(in srgb, var(--clay-shadow) 30%, transparent);
+  box-shadow:
+    inset 5px 5px 12px color-mix(in srgb, var(--clay-shadow) 68%, transparent),
+    inset -5px -5px 12px color-mix(in srgb, var(--clay-highlight) 60%, transparent);
+}
+
+.clay-field:focus {
+  border-color: color-mix(in srgb, var(--clay-accent) 66%, transparent);
+  box-shadow:
+    inset 4px 4px 10px color-mix(in srgb, var(--clay-shadow) 62%, transparent),
+    inset -4px -4px 10px color-mix(in srgb, var(--clay-highlight) 54%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--clay-accent) 20%, transparent);
+}
+
+.clay-button {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--clay-surface) 88%, white 12%), var(--clay-surface-soft));
+  border: 1px solid var(--clay-border);
+  box-shadow:
+    6px 6px 13px color-mix(in srgb, var(--clay-shadow) 76%, transparent),
+    -5px -5px 12px color-mix(in srgb, var(--clay-highlight) 74%, transparent);
+  transition: color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.clay-button:hover {
+  color: var(--clay-accent-strong);
+  transform: translateY(-1px);
+}
+
+.clay-button:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 3px 3px 7px color-mix(in srgb, var(--clay-shadow) 58%, transparent),
+    inset -3px -3px 7px color-mix(in srgb, var(--clay-highlight) 58%, transparent);
+}
+
+.clay-primary {
+  color: white;
+  background: linear-gradient(145deg, #19b5a7, #087e75);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    7px 7px 16px color-mix(in srgb, var(--clay-shadow) 88%, transparent),
+    -4px -4px 11px color-mix(in srgb, var(--clay-highlight) 58%, transparent),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.34);
+  transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+.clay-primary:hover {
+  filter: saturate(1.08) brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.clay-primary:active {
+  transform: translateY(0);
+  box-shadow:
+    inset 4px 4px 9px rgba(2, 74, 68, 0.48),
+    inset -3px -3px 8px rgba(71, 220, 207, 0.30);
+}
+
+.clay-primary:disabled {
+  color: color-mix(in srgb, var(--foreground) 42%, transparent);
+  background: var(--clay-surface-soft);
+  border-color: var(--clay-border);
+  box-shadow:
+    inset 3px 3px 8px color-mix(in srgb, var(--clay-shadow) 46%, transparent),
+    inset -3px -3px 8px color-mix(in srgb, var(--clay-highlight) 48%, transparent);
+  filter: none;
+  transform: none;
+}
+
+.clay-mint {
+  background: var(--clay-mint);
+}
+
+.clay-sky {
+  background: var(--clay-sky);
+}
+
+.clay-lilac {
+  background: var(--clay-lilac);
+}
+
+.clay-sheen::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  border-top: 1px solid rgba(255, 255, 255, 0.52);
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+  pointer-events: none;
 }

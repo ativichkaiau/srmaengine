@@ -79,7 +79,7 @@ function StatTile({
   accent?: string;
 }) {
   return (
-    <div className="glass-soft rounded-xl p-3">
+    <div className="clay-soft rounded-xl p-3">
       <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
         {label}
       </div>
@@ -103,7 +103,7 @@ function DescriptiveCard({
 }) {
   if (d.error) {
     return (
-      <div className="glass-soft rounded-2xl p-4 text-[12px] text-red-600 dark:text-red-400">
+      <div className="clay-soft rounded-2xl p-4 text-[12px] text-red-600 dark:text-red-400">
         {title ? <strong>{title}: </strong> : null}
         {String(d.error)}
       </div>
@@ -111,7 +111,7 @@ function DescriptiveCard({
   }
   const f = (k: string) => fmt(Number(d[k]));
   return (
-    <div className="glass-soft rounded-2xl p-4 space-y-3">
+    <div className="clay-soft rounded-2xl p-4 space-y-3">
       {title && (
         <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
           {title}
@@ -305,36 +305,12 @@ export default function StatsPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAFA] dark:bg-[#050505] text-neutral-900 dark:text-neutral-100 relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
+    <div className="min-h-screen flex flex-col bg-background text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(0,165,152,0.08),transparent_30%),radial-gradient(circle_at_90%_8%,rgba(59,130,246,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_14%_0%,rgba(0,165,152,0.07),transparent_30%),radial-gradient(circle_at_90%_8%,rgba(59,130,246,0.07),transparent_28%)]"></div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .glass {
-          background: linear-gradient(155deg, rgba(255,255,255,0.78), rgba(255,255,255,0.42));
-          backdrop-filter: blur(26px) saturate(180%);
-          -webkit-backdrop-filter: blur(26px) saturate(180%);
-          border: 1px solid rgba(255,255,255,0.65);
-          box-shadow: 0 12px 40px -12px rgba(15,23,42,0.18), inset 0 1px 0 rgba(255,255,255,0.85);
-        }
-        .dark .glass {
-          background: linear-gradient(155deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015));
-          border: 1px solid rgba(255,255,255,0.10);
-          box-shadow: 0 20px 50px -16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
-        }
-        .glass-soft {
-          background: linear-gradient(155deg, rgba(255,255,255,0.7), rgba(255,255,255,0.4));
-          backdrop-filter: blur(18px) saturate(160%);
-          -webkit-backdrop-filter: blur(18px) saturate(160%);
-          border: 1px solid rgba(255,255,255,0.6);
-          box-shadow: 0 6px 22px -10px rgba(15,23,42,0.14), inset 0 1px 0 rgba(255,255,255,0.7);
-        }
-        .dark .glass-soft {
-          background: linear-gradient(155deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012));
-          border: 1px solid rgba(255,255,255,0.08);
-          box-shadow: 0 10px 30px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
-        }
         @keyframes scanShimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
         .scan-shimmer::after {
           content:''; position:absolute; inset:0;
@@ -347,32 +323,32 @@ export default function StatsPage() {
       `}} />
 
       {/* Header */}
-      <header className="h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 bg-white/60 dark:bg-black/40 backdrop-blur-2xl z-50 border-b border-black/5 dark:border-white/5">
+      <header className="clay-header h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 z-50">
         <div className="flex items-center gap-4 lg:gap-8">
           <Link
             href="/"
             className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity"
           >
-            <div className="w-7 h-7 bg-neutral-900 dark:bg-white text-white dark:text-black rounded-lg flex items-center justify-center text-[14px]">V</div>
+            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[14px]">V</div>
             <div className="flex items-baseline">
               <span>VESTRIPPN</span>
               <span className="text-blue-600 dark:text-blue-400">3.0</span>
             </div>
           </Link>
-          <nav className="hidden sm:flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest">
+          <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
             <Link
               href="/"
-              className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+              className="clay-tab px-3 py-1.5 rounded-lg"
             >
               Scanner
             </Link>
             <Link
               href="/research"
-              className="px-3 py-1.5 rounded-lg text-neutral-500 dark:text-slate-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+              className="clay-tab px-3 py-1.5 rounded-lg"
             >
               Research
             </Link>
-            <span className="px-3 py-1.5 rounded-lg bg-[#00A598]/10 text-[#00A598] border border-[#00A598]/30">
+            <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">
               Statistics
             </span>
           </nav>
@@ -399,7 +375,7 @@ export default function StatsPage() {
             </p>
           </section>
 
-          <section className="glass-soft rounded-2xl p-5 sm:p-6">
+          <section className="clay-soft rounded-2xl p-5 sm:p-6">
             <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] gap-5 lg:gap-8">
               <div>
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
@@ -414,11 +390,11 @@ export default function StatsPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
                 {[
-                  ['1. Pick mode', 'Choose the test that matches your question and data shape.'],
-                  ['2. Paste values', 'Use comma, space, or newline-separated numbers; sample data can fill the expected format.'],
-                  ['3. Interpret', 'Review p-values, effect sizes, descriptive stats, and optional AI interpretation together.'],
-                ].map(([label, text]) => (
-                  <div key={label} className="rounded-xl border border-black/5 dark:border-white/10 bg-white/45 dark:bg-black/20 p-3">
+                  ['1. Pick mode', 'Choose the test that matches your question and data shape.', 'clay-mint'],
+                  ['2. Paste values', 'Use comma, space, or newline-separated numbers; sample data can fill the expected format.', 'clay-sky'],
+                  ['3. Interpret', 'Review p-values, effect sizes, descriptive stats, and optional AI interpretation together.', 'clay-lilac'],
+                ].map(([label, text, tone]) => (
+                  <div key={label} className={`clay-soft ${tone} rounded-xl p-3`}>
                     <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
                       {label}
                     </div>
@@ -432,7 +408,7 @@ export default function StatsPage() {
           </section>
 
           {/* Runtime status pill */}
-          <div className="glass-soft rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-[11px] font-mono">
+          <div className="clay-soft rounded-2xl px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-[11px] font-mono">
             <div className="flex items-center gap-3">
               <span
                 className={`relative inline-block w-2 h-2 rounded-full ${
@@ -460,7 +436,7 @@ export default function StatsPage() {
           </div>
 
           {/* Mode tabs */}
-          <div className="glass p-5 rounded-2xl space-y-5">
+          <div className="clay p-5 rounded-2xl space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
@@ -473,9 +449,9 @@ export default function StatsPage() {
               </div>
               <button
                 onClick={() => sampleFillers[mode]()}
-                className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 hover:text-[#00A598] transition-colors"
+                className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
-                ↻ Fill Sample Data
+                Fill Sample Data
               </button>
             </div>
 
@@ -488,10 +464,10 @@ export default function StatsPage() {
                     setResult(null);
                     setError(null);
                   }}
-                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all ${
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
                     mode === m.id
-                      ? 'bg-[#00A598]/10 text-[#00A598] border-[#00A598]/30 ring-2 ring-[#00A598]/20'
-                      : 'bg-white/40 dark:bg-white/5 text-neutral-500 dark:text-slate-400 border-black/10 dark:border-white/10 hover:text-neutral-900 dark:hover:text-white'
+                      ? 'clay-tab-active'
+                      : 'clay-button text-neutral-500 dark:text-slate-400'
                   }`}
                 >
                   <span className="font-black mr-1.5 opacity-70">{m.short}</span>
@@ -510,7 +486,7 @@ export default function StatsPage() {
                   value={groupText}
                   onChange={(e) => setGroupText(e.target.value)}
                   placeholder="72, 75, 78, 80, 81, 82, 84..."
-                  className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none custom-scrollbar"
+                  className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"
                 />
               </div>
             )}
@@ -525,7 +501,7 @@ export default function StatsPage() {
                     <textarea
                       value={group1Text}
                       onChange={(e) => setGroup1Text(e.target.value)}
-                      className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                      className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
                     />
                   </div>
                   <div>
@@ -535,7 +511,7 @@ export default function StatsPage() {
                     <textarea
                       value={group2Text}
                       onChange={(e) => setGroup2Text(e.target.value)}
-                      className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                      className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
                     />
                   </div>
                 </div>
@@ -566,7 +542,7 @@ export default function StatsPage() {
                               anovaGroups.filter((_, idx) => idx !== i)
                             )
                           }
-                          className="text-[10px] font-bold uppercase tracking-widest text-red-500 hover:text-red-700"
+                          className="clay-button rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-red-500"
                         >
                           ✕ Remove
                         </button>
@@ -579,13 +555,13 @@ export default function StatsPage() {
                         next[i] = e.target.value;
                         setAnovaGroups(next);
                       }}
-                      className="w-full h-20 p-3 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                      className="clay-field w-full h-20 p-3 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
                     />
                   </div>
                 ))}
                 <button
                   onClick={() => setAnovaGroups([...anovaGroups, ''])}
-                  className="text-[11px] font-bold uppercase tracking-widest text-[#00A598] hover:underline"
+                  className="clay-button rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-[#00A598]"
                 >
                   + Add Group
                 </button>
@@ -601,7 +577,7 @@ export default function StatsPage() {
                   value={tableText}
                   onChange={(e) => setTableText(e.target.value)}
                   placeholder="30, 10&#10;20, 40"
-                  className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                  className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
                 />
               </div>
             )}
@@ -615,7 +591,7 @@ export default function StatsPage() {
                   <textarea
                     value={xText}
                     onChange={(e) => setXText(e.target.value)}
-                    className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                    className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
                   />
                 </div>
                 <div>
@@ -625,7 +601,7 @@ export default function StatsPage() {
                   <textarea
                     value={yText}
                     onChange={(e) => setYText(e.target.value)}
-                    className="w-full h-28 p-4 bg-white/70 dark:bg-black/30 border border-black/10 dark:border-white/10 rounded-xl text-[13px] font-mono focus:border-[#00A598] focus:ring-2 focus:ring-[#00A598]/25 focus:outline-none resize-none"
+                    className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
                   />
                 </div>
               </div>
@@ -635,12 +611,9 @@ export default function StatsPage() {
               <button
                 onClick={handleRun}
                 disabled={busy}
-                className="group relative px-5 py-2.5 overflow-hidden bg-gradient-to-r from-[#00A598] via-[#00b3a5] to-[#0098b8] hover:from-[#009085] hover:to-[#0087a5] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[13px] font-bold rounded-xl transition-all shadow-[0_6px_22px_-4px_rgba(0,165,152,0.5)] dark:shadow-[0_0_22px_rgba(0,165,152,0.35)] active:scale-[0.98]"
+                className="clay-primary px-5 py-2.5 disabled:cursor-not-allowed text-[13px] font-bold rounded-xl active:scale-[0.98]"
               >
-                <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent disabled:hidden"></span>
-                <span className="relative">
-                  {busy ? 'Running…' : `Run ${currentMode.label}`}
-                </span>
+                {busy ? 'Running…' : `Run ${currentMode.label}`}
               </button>
             </div>
 
@@ -662,7 +635,7 @@ export default function StatsPage() {
 
               {mode === 'ttest' && (
                 <>
-                  <div className="glass p-5 rounded-2xl space-y-3">
+                  <div className="clay p-5 rounded-2xl space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
                         {String(result.test)}
@@ -697,7 +670,7 @@ export default function StatsPage() {
 
               {mode === 'anova' && (
                 <>
-                  <div className="glass p-5 rounded-2xl space-y-3">
+                  <div className="clay p-5 rounded-2xl space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
                         {String(result.test)}
@@ -735,7 +708,7 @@ export default function StatsPage() {
               )}
 
               {mode === 'chi2' && (
-                <div className="glass p-5 rounded-2xl space-y-4">
+                <div className="clay p-5 rounded-2xl space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
                       {String(result.test)}
@@ -772,14 +745,14 @@ export default function StatsPage() {
               )}
 
               {mode === 'correlation' && (
-                <div className="glass p-5 rounded-2xl space-y-3">
+                <div className="clay p-5 rounded-2xl space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
                       {String(result.test)} · n = {String(result.n)}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="glass-soft rounded-xl p-4 space-y-2">
+                    <div className="clay-soft rounded-xl p-4 space-y-2">
                       <div className="text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
                         Pearson r
                       </div>
@@ -788,7 +761,7 @@ export default function StatsPage() {
                       </div>
                       <PChip p={Number(result.pearson_p)} />
                     </div>
-                    <div className="glass-soft rounded-xl p-4 space-y-2">
+                    <div className="clay-soft rounded-xl p-4 space-y-2">
                       <div className="text-[11px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
                         Spearman ρ
                       </div>
@@ -802,7 +775,7 @@ export default function StatsPage() {
               )}
 
               {mode === 'regression' && (
-                <div className="glass p-5 rounded-2xl space-y-3">
+                <div className="clay p-5 rounded-2xl space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
                       {String(result.test)} · n = {String(result.n)}
@@ -832,7 +805,7 @@ export default function StatsPage() {
                       value={fmtP(Number(result.p))}
                     />
                   </div>
-                  <div className="font-mono text-[13px] mt-2 px-3 py-2 rounded-lg bg-white/40 dark:bg-black/30 border border-black/5 dark:border-white/10">
+                  <div className="clay-inset font-mono text-[13px] mt-2 px-3 py-2 rounded-lg">
                     ŷ = {fmt(Number(result.intercept), 4)} +{' '}
                     {fmt(Number(result.slope), 4)} · x
                   </div>
@@ -877,7 +850,7 @@ export default function StatsPage() {
           )}
 
           {!result && !error && (
-            <div className="glass-soft p-6 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
+            <div className="clay-soft p-6 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
               Pick an analysis mode above, paste your numeric data (or use{' '}
               <span className="font-bold">Fill Sample Data</span>), and hit{' '}
               <span className="font-bold">Run</span>. The first analysis kicks
@@ -897,7 +870,7 @@ export default function StatsPage() {
 function Table({ cells }: { cells: number[][] }) {
   if (!Array.isArray(cells) || cells.length === 0) return null;
   return (
-    <div className="overflow-x-auto rounded-xl border border-black/10 dark:border-white/10">
+    <div className="clay-inset overflow-x-auto rounded-xl">
       <table className="w-full text-[12px] font-mono">
         <tbody>
           {cells.map((row, ri) => (
@@ -961,7 +934,7 @@ function AIInterpretation({
   const hasAny = !!(interpretation || assumptions || apa);
 
   return (
-    <div className="glass p-5 rounded-2xl space-y-4">
+    <div className="clay p-5 rounded-2xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] font-black uppercase tracking-[0.25em] text-neutral-600 dark:text-slate-300 flex items-center gap-1.5">
@@ -975,12 +948,9 @@ function AIInterpretation({
         <button
           onClick={onInterpret}
           disabled={busy}
-          className="group relative px-4 py-2 overflow-hidden bg-gradient-to-r from-[#00A598] via-[#00b3a5] to-[#0098b8] hover:from-[#009085] hover:to-[#0087a5] disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all shadow-[0_4px_18px_-6px_rgba(0,165,152,0.5)]"
+          className="clay-primary px-4 py-2 disabled:cursor-not-allowed text-[11px] font-bold uppercase tracking-widest rounded-lg"
         >
-          <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent disabled:hidden"></span>
-          <span className="relative">
-            {busy ? 'Interpreting…' : hasAny ? 'Re-interpret' : '🧠 Interpret with AI'}
-          </span>
+          {busy ? 'Interpreting…' : hasAny ? 'Re-interpret' : 'Interpret with AI'}
         </button>
       </div>
 
@@ -993,7 +963,7 @@ function AIInterpretation({
       )}
       {busy && (
         <p className="text-[12px] text-neutral-500 dark:text-slate-400 italic">
-          Asking Claude for a biostatistician&apos;s read…
+          Asking ChatGPT for a biostatistician&apos;s read…
         </p>
       )}
       {error && (
@@ -1003,7 +973,7 @@ function AIInterpretation({
       )}
       {hasAny && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <section className="glass-soft rounded-xl p-4 space-y-1.5">
+          <section className="clay-soft rounded-xl p-4 space-y-1.5">
             <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
               Interpretation
             </div>
@@ -1011,7 +981,7 @@ function AIInterpretation({
               {interpretation || '—'}
             </p>
           </section>
-          <section className="glass-soft rounded-xl p-4 space-y-1.5">
+          <section className="clay-soft rounded-xl p-4 space-y-1.5">
             <div className="text-[10px] font-black uppercase tracking-widest text-yellow-600 dark:text-yellow-400">
               Assumptions
             </div>
@@ -1019,7 +989,7 @@ function AIInterpretation({
               {assumptions || '—'}
             </p>
           </section>
-          <section className="glass-soft rounded-xl p-4 space-y-1.5">
+          <section className="clay-soft rounded-xl p-4 space-y-1.5">
             <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
               APA Write-up
             </div>

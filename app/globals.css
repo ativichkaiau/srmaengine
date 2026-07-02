@@ -14,9 +14,20 @@
   --clay-border: rgba(255, 255, 255, 0.68);
   --clay-accent: #0b9d91;
   --clay-accent-strong: #087f76;
-  --clay-mint: #d8eee6;
-  --clay-sky: #dceaf5;
-  --clay-lilac: #e7e1f2;
+  --clay-mint: #cdeede;
+  --clay-sky: #d3e7fb;
+  --clay-lilac: #e7ddfb;
+  --clay-amber: #ffe9c2;
+  --clay-rose: #ffd9e4;
+  --clay-coral: #ffdcc9;
+  --clay-blue: #d0e2ff;
+  /* Vivid solid accents for icon chips / dots. */
+  --c-emerald: #10b981;
+  --c-blue: #3b82f6;
+  --c-violet: #8b5cf6;
+  --c-amber: #f59e0b;
+  --c-rose: #f43f5e;
+  --c-cyan: #06b6d4;
 }
 
 :root.dark {
@@ -30,9 +41,19 @@
   --clay-border: rgba(255, 255, 255, 0.07);
   --clay-accent: #35c5b7;
   --clay-accent-strong: #27a89c;
-  --clay-mint: #213b36;
-  --clay-sky: #253846;
-  --clay-lilac: #352f43;
+  --clay-mint: #1c4038;
+  --clay-sky: #1c3550;
+  --clay-lilac: #392f52;
+  --clay-amber: #4a3a1c;
+  --clay-rose: #4a2836;
+  --clay-coral: #4a3125;
+  --clay-blue: #1f3358;
+  --c-emerald: #34d399;
+  --c-blue: #60a5fa;
+  --c-violet: #a78bfa;
+  --c-amber: #fbbf24;
+  --c-rose: #fb7185;
+  --c-cyan: #22d3ee;
 }
 
 @theme inline {
@@ -190,6 +211,60 @@ body {
 .clay-lilac {
   background: var(--clay-lilac);
 }
+
+.clay-amber {
+  background: var(--clay-amber);
+}
+
+.clay-rose {
+  background: var(--clay-rose);
+}
+
+.clay-coral {
+  background: var(--clay-coral);
+}
+
+.clay-blue {
+  background: var(--clay-blue);
+}
+
+/* Colorful multi-hue canvas that sits behind the clay surfaces. */
+.app-canvas {
+  background:
+    radial-gradient(58% 52% at 6% -2%, rgba(255, 176, 92, 0.30), transparent 62%),
+    radial-gradient(52% 48% at 100% 2%, rgba(244, 114, 182, 0.28), transparent 62%),
+    radial-gradient(58% 58% at -2% 100%, rgba(56, 189, 248, 0.28), transparent 64%),
+    radial-gradient(54% 54% at 100% 100%, rgba(167, 139, 250, 0.30), transparent 64%),
+    radial-gradient(72% 60% at 50% 48%, rgba(45, 212, 191, 0.18), transparent 72%),
+    var(--background);
+  background-attachment: fixed;
+}
+
+:root.dark .app-canvas {
+  background:
+    radial-gradient(58% 52% at 6% -2%, rgba(251, 146, 60, 0.16), transparent 62%),
+    radial-gradient(52% 48% at 100% 2%, rgba(236, 72, 153, 0.15), transparent 62%),
+    radial-gradient(58% 58% at -2% 100%, rgba(56, 189, 248, 0.15), transparent 64%),
+    radial-gradient(54% 54% at 100% 100%, rgba(139, 92, 246, 0.17), transparent 64%),
+    radial-gradient(72% 60% at 50% 48%, rgba(45, 212, 191, 0.12), transparent 72%),
+    var(--background);
+  background-attachment: fixed;
+}
+
+/* Vivid gradient icon chips (e.g. PICO letter tiles, section markers). */
+.clay-chip {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    3px 3px 8px color-mix(in srgb, var(--clay-shadow) 70%, transparent),
+    inset 1px 1px 0 rgba(255, 255, 255, 0.4);
+}
+.clay-chip-emerald { background: linear-gradient(145deg, #34d399, #059669); }
+.clay-chip-blue    { background: linear-gradient(145deg, #60a5fa, #2563eb); }
+.clay-chip-violet  { background: linear-gradient(145deg, #a78bfa, #7c3aed); }
+.clay-chip-amber   { background: linear-gradient(145deg, #fbbf24, #f59e0b); }
+.clay-chip-rose    { background: linear-gradient(145deg, #fb7185, #e11d48); }
+.clay-chip-cyan    { background: linear-gradient(145deg, #22d3ee, #0891b2); }
 
 .clay-sheen::before {
   content: "";

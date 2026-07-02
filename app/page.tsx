@@ -532,7 +532,7 @@ export default function SRMATelemetryPage() {
 
   // --- UI RENDER ---
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
+    <div className="min-h-screen flex flex-col app-canvas text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
 
       {/* CUSTOM ANIMATION STYLES */}
       <style dangerouslySetInnerHTML={{ __html: `
@@ -659,17 +659,17 @@ export default function SRMATelemetryPage() {
                         </span>
                       </div>
                       {[
-                        ['P', 'Population', 'Target participants or condition'],
-                        ['I', 'Intervention', 'Exposure, therapy, or index test'],
-                        ['C', 'Comparator', 'Placebo, standard care, or alternate arm'],
-                        ['O', 'Outcomes', 'Primary endpoints and extracted measures'],
-                      ].map(([code, label, text], i) => (
+                        ['P', 'Population', 'Target participants or condition', 'clay-chip-emerald'],
+                        ['I', 'Intervention', 'Exposure, therapy, or index test', 'clay-chip-blue'],
+                        ['C', 'Comparator', 'Placebo, standard care, or alternate arm', 'clay-chip-violet'],
+                        ['O', 'Outcomes', 'Primary endpoints and extracted measures', 'clay-chip-amber'],
+                      ].map(([code, label, text, chip], i) => (
                         <div
                           key={code}
                           className="research-row flex items-start gap-3 rounded-xl border border-black/5 bg-white/55 p-3 dark:border-white/10 dark:bg-black/20"
                           style={{ animationDelay: `${i * 0.07}s` }}
                         >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-[12px] font-black text-white dark:bg-white dark:text-black">
+                          <div className={`clay-chip ${chip} flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[12px] font-black`}>
                             {code}
                           </div>
                           <div>

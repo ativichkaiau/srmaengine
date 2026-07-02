@@ -237,7 +237,7 @@ export default function ResearchPage() {
   const anyLoading = status.europepmc.loading || status.openalex.loading;
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
+    <div className="min-h-screen flex flex-col app-canvas text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.08),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.07),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.07),transparent_28%)]"></div>
       </div>

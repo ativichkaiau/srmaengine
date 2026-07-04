@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VESTRIPPN3.0 // SRMA Engine",
-  description: "For Systematic Review and Meta-Analysis",
+  title: "VESTRIPPN Observatory // Deep-Sky Evidence Survey",
+  description:
+    "A deep-sky observatory for systematic review — survey the literature sky, capture signal from noise, and read the spectra.",
 };
 
 export default function RootLayout({

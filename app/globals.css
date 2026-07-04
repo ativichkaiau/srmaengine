@@ -3,57 +3,67 @@
 /* 1. Tell Tailwind v4 engine to use the class strategy for all 'dark:' utilities */
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   VESTRIPPN OBSERVATORY — Deep-Sky theme
+   Light = dawn observatory (pale pre-dawn sky).
+   Dark  = deep night sky.
+   Signature: cyan starlight + nebula violet + amber star.
+   ============================================================ */
+
 :root {
-  --background: #eaf1ef;
-  --foreground: #17201f;
-  --clay-surface: #f2f7f5;
-  --clay-surface-soft: #e4ece9;
-  --clay-surface-inset: #dfe8e5;
+  /* Dawn observatory — a pale, cool morning sky. */
+  --background: #e9edf9;
+  --foreground: #131a2e;
+  --clay-surface: #f6f8ff;
+  --clay-surface-soft: #e7ecfa;
+  --clay-surface-inset: #e0e7f7;
   --clay-highlight: rgba(255, 255, 255, 0.95);
-  --clay-shadow: rgba(91, 112, 107, 0.28);
-  --clay-border: rgba(255, 255, 255, 0.68);
-  --clay-accent: #0b9d91;
-  --clay-accent-strong: #087f76;
-  --clay-mint: #cdeede;
-  --clay-sky: #d3e7fb;
-  --clay-lilac: #e7ddfb;
-  --clay-amber: #ffe9c2;
-  --clay-rose: #ffd9e4;
-  --clay-coral: #ffdcc9;
-  --clay-blue: #d0e2ff;
-  /* Vivid solid accents for icon chips / dots. */
-  --c-emerald: #10b981;
-  --c-blue: #3b82f6;
-  --c-violet: #8b5cf6;
-  --c-amber: #f59e0b;
-  --c-rose: #f43f5e;
-  --c-cyan: #06b6d4;
+  --clay-shadow: rgba(63, 82, 140, 0.24);
+  --clay-border: rgba(255, 255, 255, 0.72);
+  --clay-accent: #0e8fb0;        /* cyan starlight (deeper for light contrast) */
+  --clay-accent-strong: #0a6f8c;
+  /* Cosmic tint bands used for cards / chips. */
+  --clay-mint: #d3eef6;          /* signal cyan */
+  --clay-sky: #e2e0fb;           /* nebula violet */
+  --clay-lilac: #fbeccb;         /* amber star */
+  --clay-amber: #fde7bf;
+  --clay-rose: #f7dcef;
+  --clay-coral: #d9e2fb;
+  --clay-blue: #d2e6fb;
+  /* Vivid signature accents. */
+  --c-cyan: #0891b2;
+  --c-violet: #7c3aed;
+  --c-amber: #d97706;
+  --c-blue: #2563eb;
+  --c-rose: #db2777;
+  --c-emerald: #0d9488;
 }
 
 :root.dark {
-  --background: #151a1a;
-  --foreground: #edf4f2;
-  --clay-surface: #232a2a;
-  --clay-surface-soft: #1d2323;
-  --clay-surface-inset: #171c1c;
-  --clay-highlight: rgba(72, 85, 83, 0.42);
-  --clay-shadow: rgba(0, 0, 0, 0.62);
-  --clay-border: rgba(255, 255, 255, 0.07);
-  --clay-accent: #35c5b7;
-  --clay-accent-strong: #27a89c;
-  --clay-mint: #1c4038;
-  --clay-sky: #1c3550;
-  --clay-lilac: #392f52;
-  --clay-amber: #4a3a1c;
-  --clay-rose: #4a2836;
-  --clay-coral: #4a3125;
-  --clay-blue: #1f3358;
-  --c-emerald: #34d399;
-  --c-blue: #60a5fa;
+  /* Deep night sky. */
+  --background: #070b18;
+  --foreground: #e8eefc;
+  --clay-surface: #131b32;
+  --clay-surface-soft: #0e1528;
+  --clay-surface-inset: #090f1f;
+  --clay-highlight: rgba(120, 190, 255, 0.10);
+  --clay-shadow: rgba(0, 0, 0, 0.70);
+  --clay-border: rgba(125, 175, 255, 0.14);
+  --clay-accent: #45d8ee;        /* cyan starlight */
+  --clay-accent-strong: #7dd3fc;
+  --clay-mint: #123244;          /* signal cyan */
+  --clay-sky: #241a44;           /* nebula violet */
+  --clay-lilac: #3a2c14;         /* amber star */
+  --clay-amber: #3a2c14;
+  --clay-rose: #3a1830;
+  --clay-coral: #16233f;
+  --clay-blue: #14233f;
+  --c-cyan: #38d6ee;
   --c-violet: #a78bfa;
   --c-amber: #fbbf24;
+  --c-blue: #60a5fa;
   --c-rose: #fb7185;
-  --c-cyan: #22d3ee;
+  --c-emerald: #34d399;
 }
 
 @theme inline {
@@ -69,13 +79,14 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+/* ---------- Depth: raised "orbital" surfaces + inset trays ---------- */
 .clay {
   background: linear-gradient(145deg, color-mix(in srgb, var(--clay-surface) 92%, white 8%), var(--clay-surface));
   border: 1px solid var(--clay-border);
   box-shadow:
     13px 13px 28px var(--clay-shadow),
     -10px -10px 24px var(--clay-highlight),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.42);
+    inset 1px 1px 0 color-mix(in srgb, var(--clay-accent) 12%, rgba(255, 255, 255, 0.4));
 }
 
 .clay-soft {
@@ -84,7 +95,7 @@ body {
   box-shadow:
     8px 8px 18px color-mix(in srgb, var(--clay-shadow) 78%, transparent),
     -7px -7px 17px color-mix(in srgb, var(--clay-highlight) 82%, transparent),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.30);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .clay-inset {
@@ -96,7 +107,7 @@ body {
 }
 
 .clay-header {
-  background: color-mix(in srgb, var(--clay-surface) 88%, transparent);
+  background: color-mix(in srgb, var(--clay-surface) 82%, transparent);
   border-bottom: 1px solid var(--clay-border);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--clay-shadow) 38%, transparent);
   backdrop-filter: blur(18px);
@@ -123,10 +134,11 @@ body {
 .clay-tab-active {
   color: var(--clay-accent-strong);
   background: var(--clay-surface-soft);
-  border-color: var(--clay-border);
+  border-color: color-mix(in srgb, var(--clay-accent) 40%, transparent);
   box-shadow:
     inset 3px 3px 7px color-mix(in srgb, var(--clay-shadow) 55%, transparent),
-    inset -3px -3px 7px color-mix(in srgb, var(--clay-highlight) 64%, transparent);
+    inset -3px -3px 7px color-mix(in srgb, var(--clay-highlight) 64%, transparent),
+    0 0 12px color-mix(in srgb, var(--clay-accent) 30%, transparent);
 }
 
 .clay-field {
@@ -142,7 +154,7 @@ body {
   box-shadow:
     inset 4px 4px 10px color-mix(in srgb, var(--clay-shadow) 62%, transparent),
     inset -4px -4px 10px color-mix(in srgb, var(--clay-highlight) 54%, transparent),
-    0 0 0 3px color-mix(in srgb, var(--clay-accent) 20%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--clay-accent) 24%, transparent);
 }
 
 .clay-button {
@@ -166,27 +178,29 @@ body {
     inset -3px -3px 7px color-mix(in srgb, var(--clay-highlight) 58%, transparent);
 }
 
+/* Primary = a starlight→nebula beam. */
 .clay-primary {
   color: white;
-  background: linear-gradient(145deg, #19b5a7, #087e75);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(135deg, #22d3ee 0%, #6366f1 55%, #a855f7 100%);
+  border: 1px solid rgba(255, 255, 255, 0.30);
   box-shadow:
     7px 7px 16px color-mix(in srgb, var(--clay-shadow) 88%, transparent),
     -4px -4px 11px color-mix(in srgb, var(--clay-highlight) 58%, transparent),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.34);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.34),
+    0 0 22px rgba(56, 189, 248, 0.35);
   transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
 }
 
 .clay-primary:hover {
-  filter: saturate(1.08) brightness(1.03);
+  filter: saturate(1.1) brightness(1.04);
   transform: translateY(-1px);
 }
 
 .clay-primary:active {
   transform: translateY(0);
   box-shadow:
-    inset 4px 4px 9px rgba(2, 74, 68, 0.48),
-    inset -3px -3px 8px rgba(71, 220, 207, 0.30);
+    inset 4px 4px 9px rgba(12, 24, 66, 0.5),
+    inset -3px -3px 8px rgba(125, 211, 252, 0.3);
 }
 
 .clay-primary:disabled {
@@ -200,67 +214,49 @@ body {
   transform: none;
 }
 
-.clay-mint {
-  background: var(--clay-mint);
-}
+/* ---------- Cosmic tint bands ---------- */
+.clay-mint { background: var(--clay-mint); }
+.clay-sky { background: var(--clay-sky); }
+.clay-lilac { background: var(--clay-lilac); }
+.clay-amber { background: var(--clay-amber); }
+.clay-rose { background: var(--clay-rose); }
+.clay-coral { background: var(--clay-coral); }
+.clay-blue { background: var(--clay-blue); }
 
-.clay-sky {
-  background: var(--clay-sky);
-}
-
-.clay-lilac {
-  background: var(--clay-lilac);
-}
-
-.clay-amber {
-  background: var(--clay-amber);
-}
-
-.clay-rose {
-  background: var(--clay-rose);
-}
-
-.clay-coral {
-  background: var(--clay-coral);
-}
-
-.clay-blue {
-  background: var(--clay-blue);
-}
-
-/* Colorful multi-hue canvas that sits behind the clay surfaces. */
+/* ---------- Atmosphere: nebula wash behind content ---------- */
 .app-canvas {
   background:
-    radial-gradient(58% 52% at 6% -2%, rgba(255, 176, 92, 0.30), transparent 62%),
-    radial-gradient(52% 48% at 100% 2%, rgba(244, 114, 182, 0.28), transparent 62%),
-    radial-gradient(58% 58% at -2% 100%, rgba(56, 189, 248, 0.28), transparent 64%),
-    radial-gradient(54% 54% at 100% 100%, rgba(167, 139, 250, 0.30), transparent 64%),
-    radial-gradient(72% 60% at 50% 48%, rgba(45, 212, 191, 0.18), transparent 72%),
+    radial-gradient(60% 55% at 8% -4%, rgba(56, 189, 248, 0.28), transparent 60%),
+    radial-gradient(52% 50% at 100% 2%, rgba(168, 85, 247, 0.26), transparent 60%),
+    radial-gradient(58% 60% at -4% 100%, rgba(99, 102, 241, 0.22), transparent 62%),
+    radial-gradient(54% 54% at 100% 100%, rgba(251, 191, 36, 0.18), transparent 62%),
+    radial-gradient(80% 65% at 50% 46%, rgba(45, 212, 191, 0.10), transparent 72%),
     var(--background);
   background-attachment: fixed;
 }
 
 :root.dark .app-canvas {
   background:
-    radial-gradient(58% 52% at 6% -2%, rgba(251, 146, 60, 0.16), transparent 62%),
-    radial-gradient(52% 48% at 100% 2%, rgba(236, 72, 153, 0.15), transparent 62%),
-    radial-gradient(58% 58% at -2% 100%, rgba(56, 189, 248, 0.15), transparent 64%),
-    radial-gradient(54% 54% at 100% 100%, rgba(139, 92, 246, 0.17), transparent 64%),
-    radial-gradient(72% 60% at 50% 48%, rgba(45, 212, 191, 0.12), transparent 72%),
+    radial-gradient(60% 55% at 8% -4%, rgba(34, 211, 238, 0.16), transparent 60%),
+    radial-gradient(52% 50% at 100% 2%, rgba(168, 85, 247, 0.18), transparent 60%),
+    radial-gradient(58% 60% at -4% 100%, rgba(79, 70, 229, 0.20), transparent 62%),
+    radial-gradient(54% 54% at 100% 100%, rgba(251, 191, 36, 0.10), transparent 62%),
+    radial-gradient(80% 65% at 50% 46%, rgba(20, 184, 166, 0.08), transparent 72%),
     var(--background);
   background-attachment: fixed;
 }
 
-/* Vivid gradient icon chips (e.g. PICO letter tiles, section markers). */
+/* ---------- Star chips (P/I/C/O tiles, markers) ---------- */
 .clay-chip {
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.35);
   box-shadow:
     3px 3px 8px color-mix(in srgb, var(--clay-shadow) 70%, transparent),
-    inset 1px 1px 0 rgba(255, 255, 255, 0.4);
+    inset 1px 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 10px rgba(56, 189, 248, 0.25);
 }
-.clay-chip-emerald { background: linear-gradient(145deg, #34d399, #059669); }
-.clay-chip-blue    { background: linear-gradient(145deg, #60a5fa, #2563eb); }
+.clay-chip-emerald { background: linear-gradient(145deg, #2dd4bf, #0d9488); }
+.clay-chip-blue    { background: linear-gradient(145deg, #38bdf8, #2563eb); }
 .clay-chip-violet  { background: linear-gradient(145deg, #a78bfa, #7c3aed); }
 .clay-chip-amber   { background: linear-gradient(145deg, #fbbf24, #f59e0b); }
 .clay-chip-rose    { background: linear-gradient(145deg, #fb7185, #e11d48); }
@@ -271,7 +267,95 @@ body {
   position: absolute;
   inset: 1px;
   border-radius: inherit;
-  border-top: 1px solid rgba(255, 255, 255, 0.52);
-  border-left: 1px solid rgba(255, 255, 255, 0.24);
+  border-top: 1px solid color-mix(in srgb, var(--clay-accent) 30%, rgba(255, 255, 255, 0.5));
+  border-left: 1px solid rgba(255, 255, 255, 0.20);
   pointer-events: none;
+}
+
+/* ============================================================
+   SIGNATURE MOTIFS — starfield, twinkle, radar sweep, shooting star
+   ============================================================ */
+
+/* Static starfield layer (tiny dots scattered via layered gradients). */
+.obs-starfield {
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1.2px 1.2px at 28% 62%, rgba(186, 230, 253, 0.85), transparent),
+    radial-gradient(1.6px 1.6px at 47% 30%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(1.1px 1.1px at 63% 74%, rgba(196, 181, 253, 0.8), transparent),
+    radial-gradient(1.5px 1.5px at 78% 22%, rgba(255, 255, 255, 0.85), transparent),
+    radial-gradient(1.2px 1.2px at 88% 58%, rgba(253, 230, 138, 0.8), transparent),
+    radial-gradient(1.1px 1.1px at 38% 88%, rgba(255, 255, 255, 0.75), transparent),
+    radial-gradient(1.3px 1.3px at 71% 47%, rgba(255, 255, 255, 0.7), transparent),
+    radial-gradient(1.1px 1.1px at 6% 80%, rgba(186, 230, 253, 0.7), transparent),
+    radial-gradient(1.4px 1.4px at 94% 84%, rgba(255, 255, 255, 0.7), transparent);
+  background-repeat: no-repeat;
+  opacity: 0.5;
+}
+:root:not(.dark) .obs-starfield { opacity: 0.28; }
+
+/* A single twinkling star element. */
+.obs-star {
+  border-radius: 9999px;
+  background: radial-gradient(circle, #ffffff 0%, rgba(125, 211, 252, 0.9) 45%, transparent 72%);
+  animation: obsTwinkle 3.4s ease-in-out infinite;
+}
+@keyframes obsTwinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.7); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* Slow telescope / radar sweep — a soft rotating beam. */
+.obs-sweep {
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, rgba(56, 189, 248, 0.32) 0deg, transparent 42deg, transparent 360deg);
+  animation: obsSweep 8s linear infinite;
+}
+@keyframes obsSweep {
+  to { transform: rotate(360deg); }
+}
+
+/* Occasional shooting star streak. */
+.obs-shoot {
+  background: linear-gradient(90deg, transparent, #ffffff, rgba(125, 211, 252, 0.6), transparent);
+  animation: obsShoot 6.5s ease-in infinite;
+  opacity: 0;
+}
+@keyframes obsShoot {
+  0% { transform: translate3d(0, 0, 0) rotate(18deg); opacity: 0; }
+  4% { opacity: 0.9; }
+  12% { transform: translate3d(-220px, 90px, 0) rotate(18deg); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* Drifting nebula clouds for atmosphere depth. */
+.obs-drift-a { animation: obsDriftA 26s ease-in-out infinite; }
+.obs-drift-b { animation: obsDriftB 32s ease-in-out infinite; }
+@keyframes obsDriftA {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, 26px) scale(1.12); }
+}
+@keyframes obsDriftB {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-38px, -22px) scale(1.1); }
+}
+
+/* Pulsing "live signal" dot. */
+.obs-pulse { animation: obsPulse 2s ease-in-out infinite; }
+@keyframes obsPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--clay-accent) 55%, transparent); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 5px color-mix(in srgb, var(--clay-accent) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .obs-star,
+  .obs-sweep,
+  .obs-shoot,
+  .obs-drift-a,
+  .obs-drift-b,
+  .obs-pulse {
+    animation: none !important;
+  }
+  .obs-shoot { opacity: 0 !important; }
+  .obs-star { opacity: 0.7 !important; }
 }

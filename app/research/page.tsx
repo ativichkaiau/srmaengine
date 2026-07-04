@@ -56,10 +56,10 @@ const VERDICT_TONE: Record<Verdict, string> = {
 };
 
 const VERDICT_LABEL: Record<Verdict, string> = {
-  'INCLUDE / MAYBE': 'Include / Maybe',
-  UNCLEAR: 'Unclear',
-  EXCLUDE: 'Exclude',
-  NO_CRITERIA: 'No criteria',
+  'INCLUDE / MAYBE': 'Signal',
+  UNCLEAR: 'Faint',
+  EXCLUDE: 'Noise',
+  NO_CRITERIA: 'Untuned',
 };
 
 const VERDICT_ORDER: Record<Verdict, number> = {
@@ -239,7 +239,10 @@ export default function ResearchPage() {
   return (
     <div className="min-h-screen flex flex-col app-canvas text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.08),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_12%_0%,rgba(0,165,152,0.07),transparent_30%),radial-gradient(circle_at_90%_6%,rgba(59,130,246,0.07),transparent_28%)]"></div>
+        <div className="obs-drift-a absolute top-[-14%] right-[4%] w-[56%] h-[56%] rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.20),transparent_66%)] blur-[120px]"></div>
+        <div className="obs-drift-b absolute bottom-[-16%] left-[0%] w-[52%] h-[52%] rounded-full bg-[radial-gradient(circle,rgba(168,85,247,0.18),transparent_66%)] blur-[120px]"></div>
+        <div className="absolute inset-0 obs-starfield"></div>
+        <div className="obs-sweep absolute -top-[24%] -right-[12%] w-[62%] h-[124%] opacity-40 dark:opacity-60"></div>
       </div>
 
       {/* shared style block (mirrors main page essentials so this route stands alone) */}
@@ -264,16 +267,16 @@ export default function ResearchPage() {
       <header className="clay-header h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 z-50 transition-colors duration-700">
         <div className="flex items-center gap-4 lg:gap-8">
           <Link href="/" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[14px]">V</div>
+            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">✦</div>
             <div className="flex items-baseline">
               <span>VESTRIPPN</span>
-              <span className="text-blue-600 dark:text-blue-400">3.0</span>
+              <span className="text-cyan-500 dark:text-cyan-300">✦</span>
             </div>
           </Link>
           <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
-            <Link href="/" className="clay-tab px-3 py-1.5 rounded-lg">Scanner</Link>
-            <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Research</span>
-            <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
+            <Link href="/" className="clay-tab px-3 py-1.5 rounded-lg">Signal</Link>
+            <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Survey</span>
+            <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Spectra</Link>
           </nav>
         </div>
         <div className="flex gap-4 lg:gap-6 items-center">
@@ -288,36 +291,36 @@ export default function ResearchPage() {
           <section className="flex flex-col items-center text-center pt-6 sm:pt-8 pb-2">
             <h1 className="font-black tracking-tighter leading-none mb-3 text-[24px] sm:text-[32px] lg:text-[40px] flex items-center gap-3 flex-wrap justify-center">
               <span className="text-neutral-900 dark:text-white leading-none">
-                SRMA
+                Sky
               </span>
-              <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500">
-                Multi-Source Search
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-300 dark:via-indigo-300 dark:to-violet-300">
+                Survey
               </span>
             </h1>
             <p className="max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em]">
               Europe PMC{' + '}OpenAlex{' // '}
-              <span className="text-[#00A598] font-bold">Auto-classify against your PICO</span>
+              <span className="text-cyan-600 dark:text-cyan-300 font-bold">Every catch read against your star chart</span>
             </p>
           </section>
 
           <section className="clay-soft rounded-2xl p-5 sm:p-6">
             <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-5 lg:gap-8">
               <div>
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
-                  What this tab does
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-cyan-600 dark:text-cyan-300">
+                  What this station does
                 </p>
                 <h2 className="mt-2 text-[22px] sm:text-[26px] font-black tracking-tight text-neutral-900 dark:text-white">
-                  Find candidate papers, then classify them with your scanner protocol.
+                  Sweep whole skies of records, then read each catch against your chart.
                 </h2>
                 <p className="mt-3 text-[13px] leading-relaxed text-neutral-600 dark:text-slate-400">
-                  The Research tab builds a search from your inclusion keywords, queries Europe PMC and OpenAlex, removes duplicate records, then runs the same inclusion/exclusion logic used by the Scanner against each title and abstract.
+                  The survey deck builds a sweep from your signal terms, hails Europe PMC and OpenAlex, drops duplicate catches, then runs the very same signal/noise logic as the scanner over every title and abstract.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
                 {[
-                  ['1. Query', 'Start from your saved protocol or edit the search string manually.', 'clay-mint'],
-                  ['2. Sources', 'Use Europe PMC and OpenAlex together, or turn one off for a focused run.', 'clay-sky'],
-                  ['3. Triage', 'Filter by Include / Maybe, Unclear, Exclude, or No criteria after results are classified.', 'clay-lilac'],
+                  ['1. Coordinates', 'Start from your saved chart, or steer the sweep string by hand.', 'clay-mint'],
+                  ['2. Skies', 'Sweep Europe PMC and OpenAlex together, or mute one for a focused pass.', 'clay-sky'],
+                  ['3. Sort', 'Filter by Signal, Faint, Noise, or Untuned once the catch is read.', 'clay-lilac'],
                 ].map(([label, text, tone]) => (
                   <div key={label} className={`clay-soft ${tone} rounded-xl p-3`}>
                     <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
@@ -335,16 +338,16 @@ export default function ResearchPage() {
           {/* Protocol summary */}
           <div className="clay-soft p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">Active Protocol</span>
-              <span className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 rounded-lg px-2.5 py-1">
-                Inclusion ({protocol.positive.length})
+              <span className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">Active Chart</span>
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-cyan-50 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/30 rounded-lg px-2.5 py-1">
+                Signal ({protocol.positive.length})
               </span>
-              <span className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/30 rounded-lg px-2.5 py-1">
-                Exclusion ({protocol.negative.length})
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-500/30 rounded-lg px-2.5 py-1">
+                Noise ({protocol.negative.length})
               </span>
               {noCriteria && (
                 <span className="text-[11px] text-yellow-700 dark:text-yellow-400 italic">
-                  No criteria yet — results won&apos;t be classified until you add some.
+                  No bands tuned yet — catches stay unread until you set some.
                 </span>
               )}
             </div>
@@ -352,7 +355,7 @@ export default function ResearchPage() {
               href="/"
               className="clay-button rounded-lg px-3 py-2 text-[11px] font-bold uppercase tracking-widest"
             >
-              Edit on Scanner
+              Tune on Signal
             </Link>
           </div>
 
@@ -360,14 +363,14 @@ export default function ResearchPage() {
           <div className="clay p-6 rounded-2xl space-y-5 relative">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                Search Query
+                <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span>
+                Survey Coordinates
               </h2>
               <button
                 onClick={() => setQuery(buildQueryFromKeywords(protocol.positive))}
                 className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
-                Reset from Protocol
+                Load from Chart
               </button>
             </div>
 
@@ -380,7 +383,7 @@ export default function ResearchPage() {
 
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Sources</label>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Skies</label>
                 {(Object.keys(SOURCE_META) as Source[]).map((src) => (
                   <button
                     key={src}
@@ -399,7 +402,7 @@ export default function ResearchPage() {
 
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">
-                  Limit / source
+                  Catch / sky
                 </label>
                 <input
                   type="number"
@@ -416,7 +419,7 @@ export default function ResearchPage() {
                 disabled={!query.trim() || anyLoading || (!enabled.europepmc && !enabled.openalex)}
                 className="clay-primary ml-auto px-5 py-2.5 disabled:cursor-not-allowed text-[13px] font-bold rounded-xl active:scale-[0.98]"
               >
-                {anyLoading ? 'Fetching…' : 'Run Multi-Source Search'}
+                {anyLoading ? 'Sweeping…' : 'Sweep the Sky'}
               </button>
             </div>
 
@@ -476,7 +479,7 @@ export default function ResearchPage() {
 
               {filtered.length === 0 && !anyLoading ? (
                 <div className="clay-soft p-8 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400">
-                  No results match the current filter.
+                  Nothing in this band right now — try another filter.
                 </div>
               ) : (
                 <ul className="space-y-3">
@@ -568,7 +571,7 @@ export default function ResearchPage() {
                           </p>
                         ) : (
                           <p className="text-[12px] italic text-neutral-400 dark:text-slate-500">
-                            (no abstract provided by source)
+                            (no abstract came down with this catch)
                           </p>
                         )}
                       </li>
@@ -581,22 +584,22 @@ export default function ResearchPage() {
 
           {!hasSearched && (
             <div className="clay-soft p-8 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
-              Enter a query above (or use{' '}
-              <span className="font-bold">Reset from Protocol</span> to derive one
-              from your inclusion keywords) and run a multi-source search. Each
-              result will be auto-classified into{' '}
-              <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                Include / Maybe
+              Set your coordinates above (or hit{' '}
+              <span className="font-bold">Load from Chart</span> to derive them
+              from your signal terms) and sweep the sky. Every catch is read
+              against your chart and sorted into{' '}
+              <span className="font-bold text-cyan-600 dark:text-cyan-300">
+                Signal
               </span>
               ,{' '}
               <span className="font-bold text-yellow-600 dark:text-yellow-400">
-                Unclear
+                Faint
               </span>
               , or{' '}
-              <span className="font-bold text-red-600 dark:text-red-400">
-                Exclude
-              </span>{' '}
-              against your active PICO criteria.
+              <span className="font-bold text-rose-500 dark:text-rose-400">
+                Noise
+              </span>
+              .
             </div>
           )}
         </div>

@@ -307,7 +307,10 @@ export default function StatsPage() {
   return (
     <div className="min-h-screen flex flex-col app-canvas text-foreground relative overflow-hidden font-sans selection:bg-[#00A598]/30 transition-colors duration-700">
       <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_0%,rgba(0,165,152,0.08),transparent_30%),radial-gradient(circle_at_90%_8%,rgba(59,130,246,0.08),transparent_28%)] dark:bg-[radial-gradient(circle_at_14%_0%,rgba(0,165,152,0.07),transparent_30%),radial-gradient(circle_at_90%_8%,rgba(59,130,246,0.07),transparent_28%)]"></div>
+        <div className="obs-drift-a absolute top-[-14%] right-[4%] w-[56%] h-[56%] rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.20),transparent_66%)] blur-[120px]"></div>
+        <div className="obs-drift-b absolute bottom-[-16%] left-[0%] w-[52%] h-[52%] rounded-full bg-[radial-gradient(circle,rgba(168,85,247,0.18),transparent_66%)] blur-[120px]"></div>
+        <div className="absolute inset-0 obs-starfield"></div>
+        <div className="obs-sweep absolute -top-[24%] -right-[12%] w-[62%] h-[124%] opacity-40 dark:opacity-60"></div>
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
@@ -329,10 +332,10 @@ export default function StatsPage() {
             href="/"
             className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity"
           >
-            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[14px]">V</div>
+            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">✦</div>
             <div className="flex items-baseline">
               <span>VESTRIPPN</span>
-              <span className="text-blue-600 dark:text-blue-400">3.0</span>
+              <span className="text-cyan-500 dark:text-cyan-300">✦</span>
             </div>
           </Link>
           <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
@@ -340,16 +343,16 @@ export default function StatsPage() {
               href="/"
               className="clay-tab px-3 py-1.5 rounded-lg"
             >
-              Scanner
+              Signal
             </Link>
             <Link
               href="/research"
               className="clay-tab px-3 py-1.5 rounded-lg"
             >
-              Research
+              Survey
             </Link>
             <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">
-              Statistics
+              Spectra
             </span>
           </nav>
         </div>
@@ -364,35 +367,35 @@ export default function StatsPage() {
           {/* HERO */}
           <section className="flex flex-col items-center text-center pt-6 sm:pt-8 pb-2">
             <h1 className="font-black tracking-tighter leading-none mb-3 text-[24px] sm:text-[32px] lg:text-[40px] flex items-center gap-3 flex-wrap justify-center">
-              <span className="text-neutral-900 dark:text-white leading-none">SRMA</span>
-              <span className="text-transparent bg-clip-text bg-gradient-to-br from-neutral-900 to-neutral-500 dark:from-white dark:to-neutral-500">
-                Statistical Engine
+              <span className="text-neutral-900 dark:text-white leading-none">Spectra</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-300 dark:via-indigo-300 dark:to-violet-300">
+                Readout
               </span>
             </h1>
             <p className="max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em]">
               CPython · numpy · scipy.stats{' // '}
-              <span className="text-[#00A598] font-bold">In-Browser Analysis</span>
+              <span className="text-cyan-600 dark:text-cyan-300 font-bold">Read the spectra on-station</span>
             </p>
           </section>
 
           <section className="clay-soft rounded-2xl p-5 sm:p-6">
             <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] gap-5 lg:gap-8">
               <div>
-                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-[#00A598]">
-                  What this tab does
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-cyan-600 dark:text-cyan-300">
+                  What this station does
                 </p>
                 <h2 className="mt-2 text-[22px] sm:text-[26px] font-black tracking-tight text-neutral-900 dark:text-white">
-                  Run quick statistical checks on extracted study data.
+                  Read the spectra of your extracted numbers.
                 </h2>
                 <p className="mt-3 text-[13px] leading-relaxed text-neutral-600 dark:text-slate-400">
-                  The Statistics tab runs descriptive summaries and common inferential tests locally in your browser using Pyodide, NumPy, and SciPy. It is designed for rapid checking while you screen and extract data, not for replacing a full analysis plan.
+                  The spectra deck runs descriptive summaries and common inferential tests right on-station in your browser with Pyodide, NumPy, and SciPy — a fast reading while you survey and extract, not a stand-in for a full analysis plan.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
                 {[
-                  ['1. Pick mode', 'Choose the test that matches your question and data shape.', 'clay-mint'],
-                  ['2. Paste values', 'Use comma, space, or newline-separated numbers; sample data can fill the expected format.', 'clay-sky'],
-                  ['3. Interpret', 'Review p-values, effect sizes, descriptive stats, and optional AI interpretation together.', 'clay-lilac'],
+                  ['1. Pick a band', 'Choose the test that matches your question and data shape.', 'clay-mint'],
+                  ['2. Feed the readout', 'Comma, space, or newline-separated numbers; sample data can fill the format.', 'clay-sky'],
+                  ['3. Read it', 'Weigh p-values, effect sizes, descriptives, and the optional AI reading together.', 'clay-lilac'],
                 ].map(([label, text, tone]) => (
                   <div key={label} className={`clay-soft ${tone} rounded-xl p-3`}>
                     <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
@@ -420,7 +423,7 @@ export default function StatsPage() {
                 }`}
               ></span>
               <span className="font-bold uppercase tracking-widest text-neutral-600 dark:text-slate-300">
-                Python Engine
+                Spectrograph
               </span>
               <span className="text-neutral-500 dark:text-slate-400">
                 {error
@@ -440,8 +443,8 @@ export default function StatsPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  Analysis Mode
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span>
+                  Spectral Band
                 </h2>
                 <p className="text-[11px] text-neutral-500 dark:text-slate-400 mt-1">
                   {currentMode.desc}
@@ -451,7 +454,7 @@ export default function StatsPage() {
                 onClick={() => sampleFillers[mode]()}
                 className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
-                Fill Sample Data
+                Load Test Signal
               </button>
             </div>
 
@@ -613,7 +616,7 @@ export default function StatsPage() {
                 disabled={busy}
                 className="clay-primary px-5 py-2.5 disabled:cursor-not-allowed text-[13px] font-bold rounded-xl active:scale-[0.98]"
               >
-                {busy ? 'Running…' : `Run ${currentMode.label}`}
+                {busy ? 'Reading…' : `Read ${currentMode.label}`}
               </button>
             </div>
 
@@ -851,12 +854,12 @@ export default function StatsPage() {
 
           {!result && !error && (
             <div className="clay-soft p-6 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
-              Pick an analysis mode above, paste your numeric data (or use{' '}
-              <span className="font-bold">Fill Sample Data</span>), and hit{' '}
-              <span className="font-bold">Run</span>. The first analysis kicks
-              off Pyodide{' '}
+              Pick a spectral band above, feed the readout your numbers (or hit{' '}
+              <span className="font-bold">Load Test Signal</span>), and{' '}
+              <span className="font-bold">take the reading</span>. The first
+              reading warms up Pyodide{' '}
               <span className="font-mono">(~30 MB, cached after)</span> — every
-              subsequent run is instant and runs entirely in this browser tab.
+              reading after that is instant and stays entirely in this tab.
             </div>
           )}
         </div>
@@ -938,8 +941,8 @@ function AIInterpretation({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] font-black uppercase tracking-[0.25em] text-neutral-600 dark:text-slate-300 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00A598] animate-pulse"></span>
-            AI Interpretation
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 obs-pulse"></span>
+            Ground Control
           </span>
           <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 dark:text-slate-500 border border-black/10 dark:border-white/10 rounded px-1.5 py-0.5">
             ChatGPT · gpt-4o-mini
@@ -950,20 +953,20 @@ function AIInterpretation({
           disabled={busy}
           className="clay-primary px-4 py-2 disabled:cursor-not-allowed text-[11px] font-bold uppercase tracking-widest rounded-lg"
         >
-          {busy ? 'Interpreting…' : hasAny ? 'Re-interpret' : 'Interpret with AI'}
+          {busy ? 'Reading…' : hasAny ? 'Re-read' : 'Ask Ground Control'}
         </button>
       </div>
 
       {!hasAny && !busy && !error && (
         <p className="text-[12px] text-neutral-500 dark:text-slate-400 leading-relaxed">
-          Click <strong>Interpret with AI</strong> to get a plain-English
-          explanation, an assumption check, and an APA-style write-up of this
-          analysis. (Requires <code className="font-mono text-[11px]">OPENAI_API_KEY</code> set on the Vercel project.)
+          Hail <strong>Ground Control</strong> for a plain-English reading, an
+          assumption check, and an APA-style write-up of this analysis.
+          (Requires <code className="font-mono text-[11px]">OPENAI_API_KEY</code> set on the Vercel project.)
         </p>
       )}
       {busy && (
         <p className="text-[12px] text-neutral-500 dark:text-slate-400 italic">
-          Asking ChatGPT for a biostatistician&apos;s read…
+          Raising Ground Control for a biostatistician&apos;s read…
         </p>
       )}
       {error && (
@@ -974,7 +977,7 @@ function AIInterpretation({
       {hasAny && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <section className="clay-soft rounded-xl p-4 space-y-1.5">
-            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+            <div className="text-[10px] font-black uppercase tracking-widest text-cyan-600 dark:text-cyan-300">
               Interpretation
             </div>
             <p className="text-[13px] leading-relaxed text-neutral-700 dark:text-slate-200 whitespace-pre-wrap">
@@ -990,7 +993,7 @@ function AIInterpretation({
             </p>
           </section>
           <section className="clay-soft rounded-xl p-4 space-y-1.5">
-            <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">
+            <div className="text-[10px] font-black uppercase tracking-widest text-violet-600 dark:text-violet-300">
               APA Write-up
             </div>
             <p className="text-[13px] leading-relaxed font-serif text-neutral-700 dark:text-slate-200 whitespace-pre-wrap">

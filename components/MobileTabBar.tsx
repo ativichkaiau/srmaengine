@@ -7,9 +7,9 @@ import { usePathname } from 'next/navigation';
 // breakpoint, which previously left phones with no way to switch sections.
 // Shown only under `sm` (tablets/desktop keep the header nav).
 const TABS = [
-  { href: '/', label: 'Signal', icon: '✦' },
-  { href: '/research', label: 'Survey', icon: '◎' },
-  { href: '/stats', label: 'Spectra', icon: '∿' },
+  { href: '/', label: 'Scanner', icon: '⌕' },
+  { href: '/research', label: 'Research', icon: '▤' },
+  { href: '/stats', label: 'Statistics', icon: 'Σ' },
 ];
 
 export default function MobileTabBar() {

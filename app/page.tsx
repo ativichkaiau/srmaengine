@@ -124,21 +124,21 @@ type IntroScene = {
 const INTRO_SCENES: IntroScene[] = [
   {
     index: '01',
-    phase: 'CALIBRATE',
-    title: 'Tune the instrument to your question',
-    copy: 'Your saved PICO star chart is the anchor: population, intervention, outcomes, and exclusion boundaries stay fixed on the dial before any sweep begins.',
+    phase: 'DEFINE',
+    title: 'Anchor the review to a clear question',
+    copy: 'Set the population, intervention, comparator, outcomes, and exclusion boundaries before screening begins. The saved protocol keeps every record aligned to the same criteria.',
   },
   {
     index: '02',
-    phase: 'CAPTURE',
-    title: 'Read each abstract for signal',
-    copy: 'The array reads the whole abstract first, then lights up the sentences and terms that explain why a record registered as signal or noise.',
+    phase: 'SCREEN',
+    title: 'Review each abstract with context',
+    copy: 'VESTRIPPN3.0 evaluates the full abstract first, then identifies the sentences and terms that explain the screening result.',
   },
   {
     index: '03',
-    phase: 'SORT',
-    title: 'Lock signal, flag faint, drop noise',
-    copy: 'Every reading carries forward into the sky survey and the spectra deck, so all three stations work from one calibration.',
+    phase: 'SYNTHESIZE',
+    title: 'Carry one protocol through the workflow',
+    copy: 'Saved criteria flow into literature discovery and statistical analysis, keeping the Scanner, Research, and Statistics tabs connected.',
   },
 ];
 
@@ -503,12 +503,12 @@ export default function SRMATelemetryPage() {
 
   const decisionLabel =
     decision === 'EXCLUDE'
-      ? '🚫 Noise — off the survey'
+      ? 'Exclude — criterion detected'
       : decision === 'INCLUDE / MAYBE'
-      ? '🛰 Signal locked — worth tracking'
+      ? 'Include / maybe — relevant evidence found'
       : decision === 'NO_CRITERIA'
-      ? '📡 No bands tuned yet'
-      : '🌫 Faint trace — needs a second look';
+      ? 'Add screening criteria'
+      : 'Needs review — context is ambiguous';
 
   const introScene = INTRO_SCENES[introStep];
   const isLastIntroStep = introStep === INTRO_SCENES.length - 1;
@@ -517,8 +517,8 @@ export default function SRMATelemetryPage() {
   const totalCriteria = positiveKeywords.length + negativeKeywords.length;
   const protocolStatusLine =
     totalCriteria === 0
-      ? 'No bands tuned yet. Drop an abstract and log candidate terms as signal or noise to begin.'
-      : `${positiveKeywords.length} signal and ${negativeKeywords.length} noise terms held on this station.`;
+      ? 'No criteria saved yet. Paste an abstract and review the suggested inclusion or exclusion terms.'
+      : `${positiveKeywords.length} inclusion and ${negativeKeywords.length} exclusion terms saved in this browser.`;
 
   const focusScanner = () => {
     const el = document.getElementById('engine');
@@ -611,20 +611,20 @@ export default function SRMATelemetryPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="pr-24 sm:pr-0 font-mono text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.34em] text-cyan-600 dark:text-cyan-300">
-                  Deep-Sky Evidence Survey
+                  VESTRIPPN3.0
                 </p>
                 <h2 className="mt-2 text-[30px] font-black leading-none tracking-tighter text-neutral-950 dark:text-white sm:text-[44px] lg:text-[50px]">
-                  Your Survey Flight Plan
+                  Systematic Review Workflow
                 </h2>
                 <p className="mt-3 max-w-2xl text-[13px] font-semibold leading-relaxed text-neutral-500 dark:text-slate-400 sm:text-[15px]">
-                  Calibrate the instrument, sweep abstracts for signal, and carry every reading into the sky survey and the spectra deck.
+                  Define the protocol, screen abstracts with transparent evidence, discover related studies, and analyze extracted data.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2 text-center lg:min-w-[290px]">
                 {[
-                  ['Star chart', 'Set'],
-                  ['Skies', '2'],
-                  ['Station', 'Local'],
+                  ['Protocol', 'Saved'],
+                  ['Sources', '2'],
+                  ['Analysis', 'Local'],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-black/5 bg-white/55 p-3 dark:border-white/10 dark:bg-white/[0.035]">
                     <div className="text-[9px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
@@ -733,12 +733,12 @@ export default function SRMATelemetryPage() {
                   {introStep === 2 && (
                     <div className="space-y-3">
                       <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
-                        Survey log
+                        Screening decisions
                       </div>
                       {[
-                        ['Signal locked', 'Matches the chart with no noise triggers', 'emerald'],
-                        ['Faint trace', 'Signal terms present, context needs a second look', 'yellow'],
-                        ['Noise', 'Noise-band trigger or wrong study type', 'red'],
+                        ['Include', 'Matches the protocol without an exclusion trigger', 'emerald'],
+                        ['Needs review', 'Relevant terms are present, but context needs a second look', 'yellow'],
+                        ['Exclude', 'An exclusion criterion or ineligible study type was detected', 'red'],
                       ].map(([label, text, tone], i) => (
                         <div
                           key={label}
@@ -763,14 +763,14 @@ export default function SRMATelemetryPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
-                        Observatory flight path
+                        Review workflow
                       </div>
                       <div className="mt-1 text-[16px] font-black text-neutral-900 dark:text-white">
                         {introStep === 0
-                          ? 'Calibrate before the sweep'
+                          ? 'Define before screening'
                           : introStep === 1
-                          ? 'Signal with context'
-                          : 'Readings ready to reuse'}
+                          ? 'Decisions with context'
+                          : 'Evidence ready to reuse'}
                       </div>
                     </div>
                     <div className="rounded-full border border-black/10 bg-white/65 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
@@ -781,20 +781,20 @@ export default function SRMATelemetryPage() {
                   <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
                     {(introStep === 0
                       ? [
-                          ['1', 'Hold the chart', 'Signal and noise terms persist on this station.'],
-                          ['2', 'Detect candidates', 'Terms are pulled from each pasted abstract.'],
-                          ['3', 'One calibration', 'The same chart reads both scanner and survey catches.'],
+                          ['1', 'Save the protocol', 'Inclusion and exclusion terms persist after reload.'],
+                          ['2', 'Detect candidates', 'Candidate terms are extracted from each pasted abstract.'],
+                          ['3', 'Apply consistently', 'The same criteria guide scanning and literature discovery.'],
                         ]
                       : introStep === 1
                       ? [
                           ['1', 'Whole abstract', 'Context is read before sentence-level hits.'],
-                          ['2', 'Sentence signal', 'Matched sentences explain why a record registered.'],
-                          ['3', 'Word bands', 'Term counts show what drove the reading.'],
+                          ['2', 'Sentence evidence', 'Matched sentences explain why a record was classified.'],
+                          ['3', 'Keyword evidence', 'Term counts show what influenced the decision.'],
                         ]
                       : [
-                          ['1', 'Signal', 'Triage the current abstract.'],
-                          ['2', 'Survey', 'Sweep external records against the chart.'],
-                          ['3', 'Spectra', 'Read extracted numbers locally.'],
+                          ['1', 'Scanner', 'Triage the current abstract.'],
+                          ['2', 'Research', 'Search external records with the saved protocol.'],
+                          ['3', 'Statistics', 'Analyze extracted numbers locally.'],
                         ]
                     ).map(([num, label, text], i) => (
                       <div
@@ -890,17 +890,17 @@ export default function SRMATelemetryPage() {
       {/* MINIMALIST HEADER */}
       <header className="intro intro-delay-1 clay-header h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 z-50 transition-colors duration-700">
         <div className="flex items-center gap-4 lg:gap-8">
-          <Link href="/" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">✦</div>
-            <div className="flex items-baseline">
+          <Link href="/" aria-label="VESTRIPPN3.0 home" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="brand-mark w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">V</div>
+            <div className="flex items-baseline" aria-label="VESTRIPPN3.0">
               <span>VESTRIPPN</span>
-              <span className="text-cyan-500 dark:text-cyan-300 transition-colors duration-700">✦</span>
+              <span className="brand-version transition-colors duration-700">3.0</span>
             </div>
           </Link>
           <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
-            <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Signal</span>
-            <Link href="/research" className="clay-tab px-3 py-1.5 rounded-lg">Survey</Link>
-            <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Spectra</Link>
+            <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Scanner</span>
+            <Link href="/research" className="clay-tab px-3 py-1.5 rounded-lg">Research</Link>
+            <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
           </nav>
         </div>
 
@@ -918,17 +918,17 @@ export default function SRMATelemetryPage() {
             <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
               <div className="max-w-3xl">
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-cyan-600 dark:text-cyan-300">
-                  Signal Capture
+                  Abstract Scanner
                 </p>
                 <h1 className="mt-2 text-[32px] sm:text-[44px] lg:text-[54px] font-black tracking-tighter leading-[0.98] text-neutral-900 dark:text-white">
-                  Pull{' '}
+                  Screen{' '}
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-300 dark:via-indigo-300 dark:to-violet-300">
-                    signal
+                    evidence
                   </span>{' '}
-                  from the noise of one abstract.
+                  from one abstract at a time.
                 </h1>
                 <p className="mt-4 max-w-2xl text-[13px] sm:text-[14px] leading-relaxed text-neutral-600 dark:text-slate-400">
-                  Drop in an abstract, let the array pick out candidate terms, tag each as signal or noise, then sweep the full text — abstract, sentence, and word bands — for a reading.
+                  Paste an abstract, review its suggested keywords, mark inclusion and exclusion terms, then inspect the decision from abstract to sentence to word.
                 </p>
               </div>
 
@@ -937,22 +937,22 @@ export default function SRMATelemetryPage() {
                   onClick={focusScanner}
                   className="clay-primary px-5 py-3 rounded-xl text-[12px] font-black uppercase tracking-[0.18em] active:scale-95"
                 >
-                  Capture Signal
+                  Start Screening
                 </button>
                 <Link
                   href="/research"
                   className="clay-button px-5 py-3 rounded-xl text-[12px] font-black uppercase tracking-[0.18em] text-center"
                 >
-                  Open Sky Survey
+                  Open Research
                 </Link>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-black/5 dark:border-white/10 pt-4">
               {[
-                ['Star chart', protocolStatusLine, 'clay-mint'],
-                ['Survey deck', 'Sweep Europe PMC and OpenAlex, then read every catch against this same star chart.', 'clay-sky'],
-                ['Spectra deck', 'Read the spectra of your extracted numbers — descriptive and inferential, right in the browser.', 'clay-lilac'],
+                ['Saved protocol', protocolStatusLine, 'clay-mint'],
+                ['Research search', 'Search Europe PMC and OpenAlex, then screen every result against the same saved criteria.', 'clay-sky'],
+                ['Statistical analysis', 'Summarize extracted numbers with confidence intervals, effect sizes, and diagnostics in the browser.', 'clay-lilac'],
               ].map(([label, text, tone]) => (
                 <div key={label} className={`clay-soft ${tone} rounded-2xl p-4`}>
                   <div className="text-[10px] font-black uppercase tracking-[0.22em] text-neutral-500 dark:text-slate-500">
@@ -972,7 +972,7 @@ export default function SRMATelemetryPage() {
             {/* Dynamic Protocol Editor Header */}
             <div className="flex justify-between items-center mb-6 px-1">
               <h2 className="font-bold text-[16px] tracking-tight flex items-center gap-2 text-neutral-900 dark:text-white transition-colors duration-700">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span> Incoming Transmission
+                <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span> Abstract Input
                 <span className="text-[9px] font-black text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 dark:border-cyan-400/30 bg-cyan-50 dark:bg-cyan-400/10 px-1.5 py-0.5 rounded ml-2 uppercase tracking-widest transition-colors hidden sm:inline-block">Auto-Detect</span>
               </h2>
               <button
@@ -983,19 +983,19 @@ export default function SRMATelemetryPage() {
                     : 'clay-button text-neutral-500 dark:text-slate-400'
                 }`}
               >
-                {isEditingProtocol ? 'Close Console' : '⚙ Tune Bands'}
+                {isEditingProtocol ? 'Close Editor' : 'Edit Protocol'}
               </button>
             </div>
 
             {/* Protocol Editor Panel (manual fallback — starts empty) */}
             {isEditingProtocol && (
               <div className="clay-soft mb-6 p-5 rounded-2xl animate-in fade-in slide-in-from-top-2 transition-colors duration-700">
-                <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white mb-4 border-b border-black/5 dark:border-white/10 pb-2 transition-colors">Manual Band Calibration</h3>
+                <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white mb-4 border-b border-black/5 dark:border-white/10 pb-2 transition-colors">Manual Protocol Criteria</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                   <div>
                     <label className="block text-[11px] font-bold text-cyan-600 dark:text-cyan-300 mb-2 uppercase tracking-wide transition-colors">
-                      Signal band — terms (comma separated)
+                      Inclusion terms (comma separated)
                     </label>
                     <textarea
                       className="clay-field w-full h-32 p-3 text-neutral-700 dark:text-slate-300 font-mono text-[12px] rounded-xl focus:outline-none custom-scrollbar transition-colors"
@@ -1006,7 +1006,7 @@ export default function SRMATelemetryPage() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-rose-500 dark:text-rose-400 mb-2 uppercase tracking-wide transition-colors">
-                      Noise band — terms (comma separated)
+                      Exclusion terms (comma separated)
                     </label>
                     <textarea
                       className="clay-field w-full h-32 p-3 text-neutral-700 dark:text-slate-300 font-mono text-[12px] rounded-xl focus:outline-none custom-scrollbar transition-colors"
@@ -1041,7 +1041,7 @@ export default function SRMATelemetryPage() {
             <div className="space-y-4">
               <textarea
                 className="clay-field w-full h-48 p-5 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:outline-none transition-all resize-none custom-scrollbar"
-                placeholder="Drop the abstract here — the array picks out candidate terms as you type…"
+                placeholder="Paste the abstract here. Candidate keywords appear as you type…"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
               />
@@ -1055,7 +1055,7 @@ export default function SRMATelemetryPage() {
                       Detected Candidates
                     </h3>
                     <span className="text-[9px] font-black text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 rounded uppercase tracking-widest">
-                      ＋ signal · − noise
+                      + include · − exclude
                     </span>
                   </div>
 
@@ -1069,14 +1069,14 @@ export default function SRMATelemetryPage() {
                           <span className="truncate max-w-[180px]">{word}</span>
                           <button
                             onClick={() => classify(word, 'positive')}
-                            title="Log as signal"
+                            title="Add as an inclusion term"
                             className="w-5 h-5 flex items-center justify-center rounded-md text-cyan-600 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-500/20 font-black transition-colors"
                           >
                             ＋
                           </button>
                           <button
                             onClick={() => classify(word, 'negative')}
-                            title="Log as noise"
+                            title="Add as an exclusion term"
                             className="w-5 h-5 flex items-center justify-center rounded-md text-rose-500 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 font-black transition-colors"
                           >
                             −
@@ -1100,7 +1100,7 @@ export default function SRMATelemetryPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2 border-t border-black/5 dark:border-white/10">
                     <div>
                       <h4 className="text-[11px] font-bold text-cyan-600 dark:text-cyan-300 mb-2 uppercase tracking-wide transition-colors">
-                        Signal band ({positiveKeywords.length})
+                        Inclusion terms ({positiveKeywords.length})
                       </h4>
                       {positiveKeywords.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -1126,7 +1126,7 @@ export default function SRMATelemetryPage() {
                     </div>
                     <div>
                       <h4 className="text-[11px] font-bold text-rose-500 dark:text-rose-400 mb-2 uppercase tracking-wide transition-colors">
-                        Noise band ({negativeKeywords.length})
+                        Exclusion terms ({negativeKeywords.length})
                       </h4>
                       {negativeKeywords.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -1154,7 +1154,7 @@ export default function SRMATelemetryPage() {
 
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 dark:text-slate-500 flex items-center gap-1.5 pt-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 obs-pulse"></span>
-                    Star chart auto-saved to this station
+                    Protocol auto-saved in this browser
                   </p>
                 </div>
               )}
@@ -1164,14 +1164,14 @@ export default function SRMATelemetryPage() {
                   onClick={handleClear}
                   className="clay-button px-6 py-3.5 text-neutral-600 dark:text-slate-300 text-sm font-bold rounded-xl active:scale-95"
                 >
-                  Reset Array
+                  Reset Scanner
                 </button>
                 <button
                   onClick={handleScan}
                   disabled={!inputText.trim() || isEditingProtocol}
                   className="clay-primary flex-1 py-3.5 disabled:cursor-not-allowed text-sm font-bold rounded-xl active:scale-[0.98]"
                 >
-                  Sweep the Field
+                  Analyze Abstract
                 </button>
               </div>
             </div>
@@ -1187,12 +1187,12 @@ export default function SRMATelemetryPage() {
                   </h1>
                   {decision === 'NO_CRITERIA' && (
                     <span className="text-[11px] font-mono text-yellow-600 dark:text-yellow-300/70 mt-3 block tracking-normal uppercase bg-yellow-100 dark:bg-black/20 px-3 py-1 rounded text-center">
-                      Tune at least one band above before sweeping the field.
+                      Add at least one inclusion or exclusion term before screening.
                     </span>
                   )}
                   {decision === 'UNCLEAR' && scan.negatives.some((n) => n.isNegated) && (
                     <span className="text-[11px] font-mono text-yellow-600 dark:text-yellow-300/70 mt-3 block tracking-normal uppercase bg-yellow-100 dark:bg-black/20 px-3 py-1 rounded text-center">
-                      Noise reading suppressed — the trigger sat inside a negated sentence.
+                      Exclusion term ignored because it appeared in a negated sentence.
                     </span>
                   )}
                 </div>
@@ -1200,8 +1200,8 @@ export default function SRMATelemetryPage() {
                 {/* Abstract summary stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { label: 'Signal hits', value: scan.positives.length, accent: 'text-cyan-600 dark:text-cyan-300' },
-                    { label: 'Noise hits', value: scan.negatives.length, accent: 'text-rose-500 dark:text-rose-400' },
+                    { label: 'Inclusion hits', value: scan.positives.length, accent: 'text-cyan-600 dark:text-cyan-300' },
+                    { label: 'Exclusion hits', value: scan.negatives.length, accent: 'text-rose-500 dark:text-rose-400' },
                     { label: 'Sentences', value: scan.sentenceCount, accent: 'text-indigo-600 dark:text-indigo-300' },
                     { label: 'Words', value: scan.tokenCount, accent: 'text-neutral-600 dark:text-slate-300' },
                   ].map((stat) => (
@@ -1219,7 +1219,7 @@ export default function SRMATelemetryPage() {
                     className="w-full flex items-center justify-between p-5 hover:bg-neutral-50 dark:hover:bg-white/5 transition-colors"
                   >
                     <span className="font-bold text-[13px] text-neutral-700 dark:text-slate-200 flex items-center gap-2 tracking-tight">
-                      <span className="text-cyan-500 dark:text-cyan-300">▾</span> Resolve to sentence bands
+                      <span className="text-cyan-500 dark:text-cyan-300">▾</span> Review sentence evidence
                       <span className="text-[10px] font-black bg-neutral-100 dark:bg-black/50 text-neutral-500 dark:text-slate-400 px-2 py-0.5 rounded">
                         {scan.sentences.length} flagged
                       </span>
@@ -1268,7 +1268,7 @@ export default function SRMATelemetryPage() {
                         ))
                       ) : (
                         <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic px-1">
-                          No sentence bands lit up under the current tuning.
+                          No sentence-level matches were found for the current criteria.
                         </p>
                       )}
 
@@ -1279,7 +1279,7 @@ export default function SRMATelemetryPage() {
                           className="w-full flex items-center justify-between p-4 hover:bg-neutral-100 dark:hover:bg-white/5 transition-colors"
                         >
                           <span className="font-bold text-[12px] text-neutral-600 dark:text-slate-300 flex items-center gap-2 tracking-tight">
-                            <span className="text-cyan-500 dark:text-cyan-300">▾</span> Resolve to word bands
+                            <span className="text-cyan-500 dark:text-cyan-300">▾</span> Review keyword evidence
                             <span className="text-[10px] font-black bg-white dark:bg-black/50 text-neutral-500 dark:text-slate-400 px-2 py-0.5 rounded border border-black/5 dark:border-white/10">
                               {scan.wordCounts.length} tokens
                             </span>

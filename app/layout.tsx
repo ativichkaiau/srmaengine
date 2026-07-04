@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VESTRIPPN Observatory // Deep-Sky Evidence Survey",
+  title: "VESTRIPPN3.0 // Systematic Review Workspace",
   description:
-    "A deep-sky observatory for systematic review — survey the literature sky, capture signal from noise, and read the spectra.",
+    "VESTRIPPN3.0 is a systematic-review workspace for abstract screening, literature discovery, and statistical analysis.",
 };
 
 export default function RootLayout({

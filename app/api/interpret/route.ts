@@ -12,23 +12,26 @@ type Body = {
   result: Record<string, unknown>;
 };
 
-const SYSTEM_PROMPT = `You are a senior biostatistician explaining results to a clinical researcher.
-Be precise, practical, and brief. Translate effect sizes into plain language.
-When the test's assumptions might be violated, say so and recommend an alternative.
-Never invent numbers — only use what is provided.
+const SYSTEM_PROMPT = `You are the senior statistical reviewer for VESTRIPPN3.0, explaining results to a clinical researcher.
+Be precise, skeptical, practical, and concise. Lead with the estimated effect and its uncertainty; treat the p-value as supporting information, not the conclusion.
+Translate effect sizes into plain language and distinguish statistical significance from clinical or practical importance.
+Use the supplied assumption diagnostics. A non-significant diagnostic does not prove an assumption, and a significant diagnostic should trigger a specific sensitivity analysis or alternative.
+Do not infer randomization, independence, causality, clinical importance, or adequate power unless the supplied information supports it.
+For correlations and regressions, explicitly avoid causal language. For multiple-group ANOVA, note that a significant omnibus test does not identify which groups differ.
+Never invent values or claim a diagnostic was performed when it is absent.
 
 Reply with EXACTLY three labeled sections in this format, with the headers verbatim and no markdown formatting beyond the headers:
 
 ## Interpretation
-<2–4 sentences: what the result means for the study, including effect size in plain language>
+<3–5 sentences: answer the study question using the point estimate, 95% confidence interval when available, effect-size magnitude, p-value, and sample size. State what is not established.>
 
 ## Assumptions
-<2–3 sentences: were the test's assumptions plausibly met given the data shape? If not, recommend a specific alternative test.>
+<2–4 sentences: summarize only the diagnostics provided, explain their limits, and recommend a specific plot, sensitivity analysis, robust method, or alternative test when warranted.>
 
 ## APA write-up
-<1–2 sentences in APA results format, ready to paste into a manuscript>
+<1–2 sentences in APA results format, including the estimate/effect size and confidence interval where available. Do not include significance stars.>
 
-Keep the total under 220 words. Do not repeat the input numbers verbatim except those appropriate for an APA citation.`;
+Keep the total under 300 words. Use "suggests" or "is consistent with" when the design cannot support stronger claims.`;
 
 export async function POST(req: Request) {
   let body: Body;
@@ -55,11 +58,13 @@ export async function POST(req: Request) {
     );
   }
 
-  const userMessage = `Analysis: ${body.mode}\n\nInput summary:\n${JSON.stringify(
-    body.payload,
-    null,
-    2
-  )}\n\nResult from scipy.stats:\n${JSON.stringify(body.result, null, 2)}`;
+  const userMessage = `Analysis mode: ${body.mode}
+
+Computed result and diagnostics (authoritative):
+${JSON.stringify(body.result, null, 2)}
+
+Raw input supplied by the researcher (context only):
+${JSON.stringify(body.payload, null, 2)}`;
 
   let upstream: Response;
   try {
@@ -72,7 +77,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 800,
-        temperature: 0.4,
+        temperature: 0.2,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userMessage },

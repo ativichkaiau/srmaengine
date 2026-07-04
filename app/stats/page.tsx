@@ -8,7 +8,6 @@ import {
   getPyodide,
   parseNumbers,
   parseTable,
-  pStars,
   runStats,
   type StatMode,
   type StatPayload,
@@ -69,6 +68,56 @@ const fmtP = (p: number): string => {
   return p.toFixed(4);
 };
 
+const finiteValue = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+const fmtOptional = (value: unknown, digits = 4): string => {
+  const number = finiteValue(value);
+  return number === null ? 'Not available' : fmt(number, digits);
+};
+
+const fmtOptionalP = (value: unknown): string => {
+  const number = finiteValue(value);
+  return number === null ? 'Not available' : fmtP(number);
+};
+
+const fmtCI = (low: unknown, high: unknown, digits = 3): string => {
+  const lower = finiteValue(low);
+  const upper = finiteValue(high);
+  if (lower === null || upper === null) return 'Not available';
+  return `${fmt(lower, digits)} to ${fmt(upper, digits)}`;
+};
+
+function AssumptionPanel({ flags }: { flags: unknown }) {
+  const items = Array.isArray(flags)
+    ? flags.filter((item): item is string => typeof item === 'string')
+    : [];
+
+  return (
+    <div
+      className={`clay-soft rounded-xl p-4 ${
+        items.length > 0 ? 'clay-amber' : 'clay-mint'
+      }`}
+    >
+      <div className="text-[10px] font-black uppercase tracking-widest text-neutral-600 dark:text-slate-300">
+        Automated assumption check
+      </div>
+      {items.length > 0 ? (
+        <ul className="mt-2 space-y-1.5 text-[12px] leading-relaxed text-neutral-700 dark:text-slate-300">
+          {items.map((item) => (
+            <li key={item}>• {item}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-[12px] leading-relaxed text-neutral-600 dark:text-slate-400">
+          No automatic warning was triggered. This does not prove assumptions;
+          inspect study design, distributions, and plots before inference.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function StatTile({
   label,
   value,
@@ -109,7 +158,11 @@ function DescriptiveCard({
       </div>
     );
   }
-  const f = (k: string) => fmt(Number(d[k]));
+  const f = (k: string) => fmtOptional(d[k]);
+  const normality =
+    d.normality && typeof d.normality === 'object'
+      ? (d.normality as Record<string, unknown>)
+      : null;
   return (
     <div className="clay-soft rounded-2xl p-4 space-y-3">
       {title && (
@@ -137,12 +190,22 @@ function DescriptiveCard({
         <StatTile label="Q1" value={f('q1')} />
         <StatTile label="Q3" value={f('q3')} />
         <StatTile label="IQR" value={fmt(Number(d.q3) - Number(d.q1))} />
+        <StatTile label="SE" value={f('se')} />
+        <StatTile
+          label="Mean 95% CI"
+          value={fmtCI(d.mean_ci95_low, d.mean_ci95_high)}
+        />
+        <StatTile label="Skewness" value={f('skewness')} />
+        <StatTile
+          label="Shapiro p"
+          value={normality ? fmtOptionalP(normality.p) : 'Not available'}
+        />
       </div>
     </div>
   );
 }
 
-function pStarColor(p: number) {
+function pThresholdColor(p: number) {
   if (!isFinite(p)) return 'text-neutral-400';
   if (p < 0.05)
     return 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/30';
@@ -152,16 +215,19 @@ function pStarColor(p: number) {
 function PChip({ p }: { p: number }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${pStarColor(
+      className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${pThresholdColor(
         p
       )}`}
       title={
         p < 0.05
-          ? 'Statistically significant at α = 0.05'
-          : 'Not statistically significant at α = 0.05'
+          ? 'The p-value is below the conventional α = 0.05 threshold.'
+          : 'The p-value is at or above the conventional α = 0.05 threshold.'
       }
     >
-      p = {fmtP(p)} <span>{pStars(p)}</span>
+      p = {fmtP(p)}
+      <span className="opacity-75">
+        {p < 0.05 ? 'below α .05' : 'at/above α .05'}
+      </span>
     </span>
   );
 }
@@ -330,12 +396,13 @@ export default function StatsPage() {
         <div className="flex items-center gap-4 lg:gap-8">
           <Link
             href="/"
+            aria-label="VESTRIPPN3.0 home"
             className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity"
           >
-            <div className="clay-primary w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">✦</div>
-            <div className="flex items-baseline">
+            <div className="brand-mark w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">V</div>
+            <div className="flex items-baseline" aria-label="VESTRIPPN3.0">
               <span>VESTRIPPN</span>
-              <span className="text-cyan-500 dark:text-cyan-300">✦</span>
+              <span className="brand-version">3.0</span>
             </div>
           </Link>
           <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
@@ -343,16 +410,16 @@ export default function StatsPage() {
               href="/"
               className="clay-tab px-3 py-1.5 rounded-lg"
             >
-              Signal
+              Scanner
             </Link>
             <Link
               href="/research"
               className="clay-tab px-3 py-1.5 rounded-lg"
             >
-              Survey
+              Research
             </Link>
             <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">
-              Spectra
+              Statistics
             </span>
           </nav>
         </div>
@@ -367,14 +434,14 @@ export default function StatsPage() {
           {/* HERO */}
           <section className="flex flex-col items-center text-center pt-6 sm:pt-8 pb-2">
             <h1 className="font-black tracking-tighter leading-none mb-3 text-[24px] sm:text-[32px] lg:text-[40px] flex items-center gap-3 flex-wrap justify-center">
-              <span className="text-neutral-900 dark:text-white leading-none">Spectra</span>
+              <span className="text-neutral-900 dark:text-white leading-none">VESTRIPPN3.0</span>
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-300 dark:via-indigo-300 dark:to-violet-300">
-                Readout
+                Statistical Engine
               </span>
             </h1>
             <p className="max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em]">
               CPython · numpy · scipy.stats{' // '}
-              <span className="text-cyan-600 dark:text-cyan-300 font-bold">Read the spectra on-station</span>
+              <span className="text-cyan-600 dark:text-cyan-300 font-bold">In-browser analysis</span>
             </p>
           </section>
 
@@ -382,20 +449,20 @@ export default function StatsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] gap-5 lg:gap-8">
               <div>
                 <p className="font-mono text-[10px] font-black uppercase tracking-[0.28em] text-cyan-600 dark:text-cyan-300">
-                  What this station does
+                  What this tab does
                 </p>
                 <h2 className="mt-2 text-[22px] sm:text-[26px] font-black tracking-tight text-neutral-900 dark:text-white">
-                  Read the spectra of your extracted numbers.
+                  Analyze extracted study data with uncertainty and diagnostics.
                 </h2>
                 <p className="mt-3 text-[13px] leading-relaxed text-neutral-600 dark:text-slate-400">
-                  The spectra deck runs descriptive summaries and common inferential tests right on-station in your browser with Pyodide, NumPy, and SciPy — a fast reading while you survey and extract, not a stand-in for a full analysis plan.
+                  The Statistics tab runs descriptive summaries and common inferential tests locally with Pyodide, NumPy, and SciPy. Results pair estimates and p-values with confidence intervals, effect sizes, and assumption checks; they support, but do not replace, a prespecified analysis plan.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-3">
                 {[
-                  ['1. Pick a band', 'Choose the test that matches your question and data shape.', 'clay-mint'],
-                  ['2. Feed the readout', 'Comma, space, or newline-separated numbers; sample data can fill the format.', 'clay-sky'],
-                  ['3. Read it', 'Weigh p-values, effect sizes, descriptives, and the optional AI reading together.', 'clay-lilac'],
+                  ['1. Choose a test', 'Match the analysis to the study question, design, and data structure.', 'clay-mint'],
+                  ['2. Enter data', 'Use comma, space, or newline-separated numbers; sample data shows the required format.', 'clay-sky'],
+                  ['3. Interpret together', 'Read estimates, confidence intervals, effect sizes, diagnostics, and p-values together.', 'clay-lilac'],
                 ].map(([label, text, tone]) => (
                   <div key={label} className={`clay-soft ${tone} rounded-xl p-3`}>
                     <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-500">
@@ -423,7 +490,7 @@ export default function StatsPage() {
                 }`}
               ></span>
               <span className="font-bold uppercase tracking-widest text-neutral-600 dark:text-slate-300">
-                Spectrograph
+                Python Engine
               </span>
               <span className="text-neutral-500 dark:text-slate-400">
                 {error
@@ -444,7 +511,7 @@ export default function StatsPage() {
               <div>
                 <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span>
-                  Spectral Band
+                  Analysis Mode
                 </h2>
                 <p className="text-[11px] text-neutral-500 dark:text-slate-400 mt-1">
                   {currentMode.desc}
@@ -454,7 +521,7 @@ export default function StatsPage() {
                 onClick={() => sampleFillers[mode]()}
                 className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
-                Load Test Signal
+                Fill Sample Data
               </button>
             </div>
 
@@ -656,7 +723,27 @@ export default function StatsPage() {
                         label="Cohen's d"
                         value={fmt(Number(result.cohen_d))}
                       />
+                      <StatTile
+                        label="Mean difference"
+                        value={fmtOptional(result.mean_difference)}
+                      />
+                      <StatTile
+                        label="Difference 95% CI"
+                        value={fmtCI(
+                          result.mean_difference_ci95_low,
+                          result.mean_difference_ci95_high
+                        )}
+                      />
+                      <StatTile
+                        label="Effect magnitude"
+                        value={String(result.effect_magnitude ?? 'Not available')}
+                      />
+                      <StatTile
+                        label="Levene p"
+                        value={fmtOptionalP(result.levene_p)}
+                      />
                     </div>
+                    <AssumptionPanel flags={result.assumption_flags} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <DescriptiveCard
@@ -694,7 +781,24 @@ export default function StatsPage() {
                         label="η²"
                         value={fmt(Number(result.eta_squared))}
                       />
+                      <StatTile
+                        label="p-value"
+                        value={fmtP(Number(result.p))}
+                      />
+                      <StatTile
+                        label="ω²"
+                        value={fmtOptional(result.omega_squared)}
+                      />
+                      <StatTile
+                        label="Effect magnitude"
+                        value={String(result.effect_magnitude ?? 'Not available')}
+                      />
+                      <StatTile
+                        label="Levene p"
+                        value={fmtOptionalP(result.levene_p)}
+                      />
                     </div>
+                    <AssumptionPanel flags={result.assumption_flags} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {(result.groups as Record<string, unknown>[]).map(
@@ -729,7 +833,24 @@ export default function StatsPage() {
                       label="Cramér's V"
                       value={fmt(Number(result.cramer_v))}
                     />
+                    <StatTile label="n" value={String(result.n)} />
+                    <StatTile
+                      label="Effect magnitude"
+                      value={String(result.effect_magnitude ?? 'Not available')}
+                    />
+                    <StatTile
+                      label="Minimum expected"
+                      value={fmtOptional(result.minimum_expected, 2)}
+                    />
+                    <StatTile
+                      label="Expected cells < 5"
+                      value={`${String(result.expected_below_5_count)} (${fmtOptional(
+                        result.expected_below_5_percent,
+                        1
+                      )}%)`}
+                    />
                   </div>
+                  <AssumptionPanel flags={result.assumption_flags} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                     <div>
                       <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
@@ -762,6 +883,15 @@ export default function StatsPage() {
                       <div className="text-2xl font-black">
                         {fmt(Number(result.pearson_r))}
                       </div>
+                      <div className="text-[11px] text-neutral-500 dark:text-slate-400">
+                        95% CI: {fmtCI(
+                          result.pearson_ci95_low,
+                          result.pearson_ci95_high
+                        )}
+                      </div>
+                      <div className="text-[11px] font-bold text-neutral-600 dark:text-slate-300">
+                        {String(result.effect_magnitude ?? 'Not available')} association
+                      </div>
                       <PChip p={Number(result.pearson_p)} />
                     </div>
                     <div className="clay-soft rounded-xl p-4 space-y-2">
@@ -774,6 +904,7 @@ export default function StatsPage() {
                       <PChip p={Number(result.spearman_p)} />
                     </div>
                   </div>
+                  <AssumptionPanel flags={result.assumption_flags} />
                 </div>
               )}
 
@@ -807,11 +938,28 @@ export default function StatsPage() {
                       label="p-value"
                       value={fmtP(Number(result.p))}
                     />
+                    <StatTile
+                      label="Slope 95% CI"
+                      value={fmtCI(
+                        result.slope_ci95_low,
+                        result.slope_ci95_high
+                      )}
+                    />
+                    <StatTile
+                      label="Adjusted R²"
+                      value={fmtOptional(result.adjusted_r_squared)}
+                    />
+                    <StatTile
+                      label="Residual SE"
+                      value={fmtOptional(result.residual_standard_error)}
+                    />
+                    <StatTile label="df" value={String(result.df)} />
                   </div>
                   <div className="clay-inset font-mono text-[13px] mt-2 px-3 py-2 rounded-lg">
                     ŷ = {fmt(Number(result.intercept), 4)} +{' '}
                     {fmt(Number(result.slope), 4)} · x
                   </div>
+                  <AssumptionPanel flags={result.assumption_flags} />
                 </div>
               )}
 
@@ -854,12 +1002,11 @@ export default function StatsPage() {
 
           {!result && !error && (
             <div className="clay-soft p-6 rounded-2xl text-center text-[13px] text-neutral-500 dark:text-slate-400 leading-relaxed">
-              Pick a spectral band above, feed the readout your numbers (or hit{' '}
-              <span className="font-bold">Load Test Signal</span>), and{' '}
-              <span className="font-bold">take the reading</span>. The first
-              reading warms up Pyodide{' '}
+              Choose an analysis mode, enter your numbers (or use{' '}
+              <span className="font-bold">Fill Sample Data</span>), and run the
+              test. The first analysis loads Pyodide{' '}
               <span className="font-mono">(~30 MB, cached after)</span> — every
-              reading after that is instant and stays entirely in this tab.
+              later analysis runs locally in this browser tab.
             </div>
           )}
         </div>

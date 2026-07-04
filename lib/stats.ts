@@ -21,12 +21,17 @@ declare global {
 }
 
 let pyPromise: Promise<PyodideAPI> | null = null;
+let pyInstance: PyodideAPI | null = null;
 
 export type ProgressHandler = (msg: string) => void;
 
 export function getPyodide(onProgress?: ProgressHandler): Promise<PyodideAPI> {
-  if (pyPromise) {
+  if (pyInstance) {
     onProgress?.('Ready.');
+    return Promise.resolve(pyInstance);
+  }
+  if (pyPromise) {
+    onProgress?.('Engine is still loading…');
     return pyPromise;
   }
   pyPromise = (async () => {
@@ -48,8 +53,12 @@ export function getPyodide(onProgress?: ProgressHandler): Promise<PyodideAPI> {
     onProgress?.('Loading numpy + scipy…');
     await py.loadPackage(['numpy', 'scipy']);
     onProgress?.('Engine ready.');
+    pyInstance = py;
     return py;
-  })();
+  })().catch((error: unknown) => {
+    pyPromise = null;
+    throw error;
+  });
   return pyPromise;
 }
 
@@ -75,26 +84,102 @@ req = json.loads(req_json)
 mode = req['mode']
 data = req['data']
 
-def desc(arr_list):
+def clean(arr_list):
     arr = np.asarray(arr_list, dtype=float)
-    arr = arr[~np.isnan(arr)]
+    return arr[np.isfinite(arr)]
+
+def mean_ci(arr, confidence=0.95):
+    n = int(arr.size)
+    if n < 2:
+        return {'low': None, 'high': None, 'se': None}
+    se = float(st.sem(arr))
+    if not np.isfinite(se):
+        return {'low': None, 'high': None, 'se': None}
+    critical = float(st.t.ppf((1 + confidence) / 2, n - 1))
+    mean = float(arr.mean())
+    margin = critical * se
+    return {'low': mean - margin, 'high': mean + margin, 'se': se}
+
+def normality(arr):
+    n = int(arr.size)
+    if n < 3:
+        return {
+            'w': None,
+            'p': None,
+            'note': 'Shapiro-Wilk requires at least 3 observations.'
+        }
+    if float(arr.std()) == 0:
+        return {
+            'w': None,
+            'p': None,
+            'note': 'Normality cannot be assessed because the sample has no variation.'
+        }
+    if n > 5000:
+        return {
+            'w': None,
+            'p': None,
+            'note': 'Shapiro-Wilk p-values are not reliable above 5,000 observations.'
+        }
+    res = st.shapiro(arr)
+    return {
+        'w': float(res.statistic),
+        'p': float(res.pvalue),
+        'note': (
+            'Potential departure from normality.'
+            if float(res.pvalue) < 0.05
+            else 'No strong evidence against normality.'
+        )
+    }
+
+def standardized_effect_label(value):
+    x = abs(float(value))
+    if x < 0.2: return 'negligible'
+    if x < 0.5: return 'small'
+    if x < 0.8: return 'moderate'
+    return 'large'
+
+def association_effect_label(value):
+    x = abs(float(value))
+    if x < 0.1: return 'negligible'
+    if x < 0.3: return 'small'
+    if x < 0.5: return 'moderate'
+    return 'large'
+
+def eta_effect_label(value):
+    x = max(0.0, float(value))
+    if x < 0.01: return 'negligible'
+    if x < 0.06: return 'small'
+    if x < 0.14: return 'moderate'
+    return 'large'
+
+def desc(arr_list):
+    arr = clean(arr_list)
     n = int(arr.size)
     if n == 0:
         return {'error': 'empty data'}
     m = st.mode(arr, keepdims=False)
+    ci = mean_ci(arr)
+    spread = float(arr.std(ddof=1)) if n > 1 else 0.0
+    shape_ok = n > 2 and spread > 0
     out = {
         'n': n,
         'mean': float(arr.mean()),
         'median': float(np.median(arr)),
         'mode': float(m.mode),
         'mode_count': int(m.count),
-        'std': float(arr.std(ddof=1)) if n > 1 else 0.0,
+        'std': spread,
         'variance': float(arr.var(ddof=1)) if n > 1 else 0.0,
+        'se': ci['se'],
+        'mean_ci95_low': ci['low'],
+        'mean_ci95_high': ci['high'],
         'min': float(arr.min()),
         'max': float(arr.max()),
         'range': float(arr.max() - arr.min()),
         'q1': float(np.percentile(arr, 25)),
         'q3': float(np.percentile(arr, 75)),
+        'skewness': float(st.skew(arr, bias=False)) if shape_ok else None,
+        'kurtosis_excess': float(st.kurtosis(arr, bias=False)) if n > 3 and spread > 0 else None,
+        'normality': normality(arr),
     }
     return out
 
@@ -103,13 +188,15 @@ try:
         result = {'descriptive': desc(data['group'])}
 
     elif mode == 'ttest':
-        g1 = np.asarray(data['group1'], dtype=float)
-        g2 = np.asarray(data['group2'], dtype=float)
-        g1 = g1[~np.isnan(g1)]
-        g2 = g2[~np.isnan(g2)]
+        g1 = clean(data['group1'])
+        g2 = clean(data['group2'])
         if g1.size < 2 or g2.size < 2:
             raise ValueError('Each group needs at least 2 observations.')
         paired = bool(data.get('paired'))
+        flags = []
+        mean_diff = float(g1.mean() - g2.mean())
+        levene_w = None
+        levene_p = None
         if paired:
             if g1.size != g2.size:
                 raise ValueError(
@@ -119,43 +206,106 @@ try:
             df = float(g1.size - 1)
             diff = g1 - g2
             sd = float(diff.std(ddof=1))
+            if sd == 0:
+                raise ValueError(
+                    'Paired t-test requires variation in the within-pair differences.'
+                )
             d = float(diff.mean() / sd) if sd > 0 else 0.0
+            se_diff = sd / np.sqrt(g1.size) if sd > 0 else 0.0
+            norm_diff = normality(diff)
+            if norm_diff['p'] is not None and norm_diff['p'] < 0.05:
+                flags.append(
+                    'Paired differences depart from normality; consider a Wilcoxon signed-rank sensitivity analysis.'
+                )
+            normality_report = {'paired_differences': norm_diff}
             test_label = 'Paired t-test'
         else:
             res = st.ttest_ind(g1, g2, equal_var=False)
             v1 = float(g1.var(ddof=1)); v2 = float(g2.var(ddof=1))
             n1 = int(g1.size); n2 = int(g2.size)
+            if v1 == 0 and v2 == 0:
+                raise ValueError(
+                    'T-test requires variation in at least one group.'
+                )
+            se_diff = float(np.sqrt(v1/n1 + v2/n2))
             df = ((v1/n1 + v2/n2) ** 2) / (((v1/n1) ** 2)/(n1-1) + ((v2/n2) ** 2)/(n2-1)) \
                 if n1 > 1 and n2 > 1 else float('nan')
             pooled = (((n1-1)*v1 + (n2-1)*v2) / (n1+n2-2)) ** 0.5 if n1+n2 > 2 else 0.0
             d = float((g1.mean() - g2.mean()) / pooled) if pooled > 0 else 0.0
+            lev = st.levene(g1, g2, center='median')
+            levene_w = float(lev.statistic)
+            levene_p = float(lev.pvalue)
+            norm1 = normality(g1)
+            norm2 = normality(g2)
+            normality_report = {'group1': norm1, 'group2': norm2}
+            if levene_p < 0.05:
+                flags.append(
+                    'Group variances differ; Welch correction is already applied.'
+                )
+            if (
+                (norm1['p'] is not None and norm1['p'] < 0.05)
+                or (norm2['p'] is not None and norm2['p'] < 0.05)
+            ):
+                flags.append(
+                    'At least one group departs from normality; inspect distributions and consider a Mann-Whitney sensitivity analysis.'
+                )
             test_label = "Welch's t-test (unequal variance)"
+        critical = float(st.t.ppf(0.975, df))
+        ci_low = mean_diff - critical * se_diff
+        ci_high = mean_diff + critical * se_diff
         result = {
             'test': test_label,
             't': float(res.statistic),
             'p': float(res.pvalue),
             'df': float(df),
+            'mean_difference': mean_diff,
+            'mean_difference_ci95_low': float(ci_low),
+            'mean_difference_ci95_high': float(ci_high),
             'cohen_d': d,
+            'effect_magnitude': standardized_effect_label(d),
+            'levene_w': levene_w,
+            'levene_p': levene_p,
+            'normality': normality_report,
+            'assumption_flags': flags,
             'group1': desc(data['group1']),
             'group2': desc(data['group2']),
         }
 
     elif mode == 'anova':
         raw = data['groups']
-        groups = [np.asarray(g, dtype=float) for g in raw]
-        groups = [g[~np.isnan(g)] for g in groups]
+        groups = [clean(g) for g in raw]
         if len(groups) < 2:
             raise ValueError('ANOVA needs at least 2 groups.')
         if any(g.size < 2 for g in groups):
             raise ValueError('Each ANOVA group needs at least 2 observations.')
         res = st.f_oneway(*groups)
+        lev = st.levene(*groups, center='median')
         all_vals = np.concatenate(groups)
+        if float(all_vals.std()) == 0:
+            raise ValueError('ANOVA requires variation in the observed values.')
         grand = float(all_vals.mean())
         ss_between = float(sum(g.size * (g.mean() - grand) ** 2 for g in groups))
         ss_total = float(((all_vals - grand) ** 2).sum())
+        ss_within = max(0.0, ss_total - ss_between)
         eta2 = float(ss_between / ss_total) if ss_total > 0 else 0.0
         df_between = len(groups) - 1
         df_within = int(sum(g.size for g in groups) - len(groups))
+        ms_within = ss_within / df_within if df_within > 0 else 0.0
+        omega2 = (
+            max(0.0, (ss_between - df_between * ms_within) / (ss_total + ms_within))
+            if ss_total + ms_within > 0
+            else 0.0
+        )
+        normality_report = [normality(g) for g in groups]
+        flags = []
+        if float(lev.pvalue) < 0.05:
+            flags.append(
+                'Group variances differ; consider Welch ANOVA or a heteroscedastic model.'
+            )
+        if any(n['p'] is not None and n['p'] < 0.05 for n in normality_report):
+            flags.append(
+                'At least one group departs from normality; inspect residuals and consider a Kruskal-Wallis sensitivity analysis.'
+            )
         result = {
             'test': 'One-way ANOVA',
             'F': float(res.statistic),
@@ -163,6 +313,12 @@ try:
             'df_between': df_between,
             'df_within': df_within,
             'eta_squared': eta2,
+            'omega_squared': float(omega2),
+            'effect_magnitude': eta_effect_label(eta2),
+            'levene_w': float(lev.statistic),
+            'levene_p': float(lev.pvalue),
+            'normality': normality_report,
+            'assumption_flags': flags,
             'groups': [desc(g.tolist()) for g in groups],
         }
 
@@ -176,13 +332,31 @@ try:
         n = float(observed.sum())
         k = int(min(observed.shape)) - 1
         cramer_v = float(((chi2 / (n * k)) ** 0.5)) if n > 0 and k > 0 else 0.0
+        sparse_count = int((expected < 5).sum())
+        sparse_percent = float(100 * sparse_count / expected.size)
+        minimum_expected = float(expected.min())
+        flags = []
+        if minimum_expected < 1:
+            flags.append(
+                'At least one expected cell count is below 1; the chi-square approximation is unreliable.'
+            )
+        elif sparse_percent > 20:
+            flags.append(
+                'More than 20% of expected cell counts are below 5; consider exact or Monte Carlo methods.'
+            )
         result = {
             'test': 'Chi-square test of independence',
             'chi2': float(chi2),
             'p': float(p),
             'df': int(dof),
             'cramer_v': cramer_v,
+            'effect_magnitude': association_effect_label(cramer_v),
             'n': int(n),
+            'minimum_expected': minimum_expected,
+            'expected_below_5_count': sparse_count,
+            'expected_below_5_percent': sparse_percent,
+            'yates_correction': bool(observed.shape == (2, 2)),
+            'assumption_flags': flags,
             'observed': observed.tolist(),
             'expected': expected.tolist(),
         }
@@ -192,19 +366,45 @@ try:
         y = np.asarray(data['y'], dtype=float)
         if x.size != y.size:
             raise ValueError(f'X and Y must be the same length (got {x.size} vs {y.size}).')
-        mask = ~(np.isnan(x) | np.isnan(y))
+        mask = np.isfinite(x) & np.isfinite(y)
         x, y = x[mask], y[mask]
         if x.size < 3:
             raise ValueError('Correlation needs at least 3 paired observations.')
+        if float(x.std()) == 0 or float(y.std()) == 0:
+            raise ValueError('Correlation is undefined when X or Y has no variation.')
         pr = st.pearsonr(x, y)
         sr = st.spearmanr(x, y)
+        pearson_r = float(pr.statistic if hasattr(pr, 'statistic') else pr[0])
+        if x.size > 3 and abs(pearson_r) < 1:
+            z = float(np.arctanh(pearson_r))
+            z_margin = float(st.norm.ppf(0.975) / np.sqrt(x.size - 3))
+            pearson_ci_low = float(np.tanh(z - z_margin))
+            pearson_ci_high = float(np.tanh(z + z_margin))
+        else:
+            pearson_ci_low = -1.0
+            pearson_ci_high = 1.0
+        norm_x = normality(x)
+        norm_y = normality(y)
+        flags = []
+        if (
+            (norm_x['p'] is not None and norm_x['p'] < 0.05)
+            or (norm_y['p'] is not None and norm_y['p'] < 0.05)
+        ):
+            flags.append(
+                'At least one variable departs from normality; emphasize Spearman correlation and inspect the scatterplot.'
+            )
         result = {
             'test': 'Correlation',
             'n': int(x.size),
-            'pearson_r': float(pr.statistic if hasattr(pr, 'statistic') else pr[0]),
+            'pearson_r': pearson_r,
             'pearson_p': float(pr.pvalue if hasattr(pr, 'pvalue') else pr[1]),
+            'pearson_ci95_low': pearson_ci_low,
+            'pearson_ci95_high': pearson_ci_high,
             'spearman_r': float(sr.statistic if hasattr(sr, 'statistic') else sr[0]),
             'spearman_p': float(sr.pvalue if hasattr(sr, 'pvalue') else sr[1]),
+            'effect_magnitude': association_effect_label(pearson_r),
+            'normality': {'x': norm_x, 'y': norm_y},
+            'assumption_flags': flags,
         }
 
     elif mode == 'regression':
@@ -212,21 +412,51 @@ try:
         y = np.asarray(data['y'], dtype=float)
         if x.size != y.size:
             raise ValueError(f'X and Y must be the same length (got {x.size} vs {y.size}).')
-        mask = ~(np.isnan(x) | np.isnan(y))
+        mask = np.isfinite(x) & np.isfinite(y)
         x, y = x[mask], y[mask]
         if x.size < 3:
             raise ValueError('Regression needs at least 3 paired observations.')
+        if float(x.std()) == 0:
+            raise ValueError('Regression requires variation in X.')
+        if float(y.std()) == 0:
+            raise ValueError('Regression is not informative when Y has no variation.')
         lr = st.linregress(x, y)
+        df = int(x.size - 2)
+        critical = float(st.t.ppf(0.975, df))
+        intercept_se = float(getattr(lr, 'intercept_stderr', float('nan')))
+        fitted = lr.intercept + lr.slope * x
+        residuals = y - fitted
+        residual_se = float(np.sqrt(np.sum(residuals ** 2) / df))
+        residual_normality = normality(residuals)
+        r_squared = float(lr.rvalue ** 2)
+        adjusted_r_squared = float(1 - (1 - r_squared) * (x.size - 1) / df)
+        flags = []
+        if (
+            residual_normality['p'] is not None
+            and residual_normality['p'] < 0.05
+        ):
+            flags.append(
+                'Residuals depart from normality; inspect residual plots and consider robust standard errors or transformation.'
+            )
         result = {
             'test': 'Simple linear regression  (y = a + b·x)',
             'n': int(x.size),
+            'df': df,
             'slope': float(lr.slope),
+            'slope_ci95_low': float(lr.slope - critical * lr.stderr),
+            'slope_ci95_high': float(lr.slope + critical * lr.stderr),
             'intercept': float(lr.intercept),
+            'intercept_ci95_low': float(lr.intercept - critical * intercept_se),
+            'intercept_ci95_high': float(lr.intercept + critical * intercept_se),
             'r': float(lr.rvalue),
-            'r_squared': float(lr.rvalue ** 2),
+            'r_squared': r_squared,
+            'adjusted_r_squared': adjusted_r_squared,
             'p': float(lr.pvalue),
             'stderr': float(lr.stderr),
-            'intercept_stderr': float(getattr(lr, 'intercept_stderr', float('nan'))),
+            'intercept_stderr': intercept_se,
+            'residual_standard_error': residual_se,
+            'residual_normality': residual_normality,
+            'assumption_flags': flags,
         }
 
     else:
@@ -234,7 +464,20 @@ try:
 except Exception as e:
     result = {'error': str(e)}
 
-result_json = json.dumps(result)
+def json_safe(value):
+    if isinstance(value, dict):
+        return {k: json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    if isinstance(value, (float, np.floating)):
+        return float(value) if np.isfinite(value) else None
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    if isinstance(value, (int, np.integer)):
+        return int(value)
+    return value
+
+result_json = json.dumps(json_safe(result))
 `;
 
 export async function runStats(
@@ -272,13 +515,4 @@ export function parseTable(text: string): number[][] {
   return rows.map((r) =>
     r.length === width ? r : [...r, ...Array(width - r.length).fill(0)]
   );
-}
-
-// Format a p-value with significance stars.
-export function pStars(p: number): string {
-  if (!isFinite(p)) return 'n/a';
-  if (p < 0.001) return '***';
-  if (p < 0.01) return '**';
-  if (p < 0.05) return '*';
-  return 'ns';
 }

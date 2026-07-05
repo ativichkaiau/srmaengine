@@ -17,15 +17,18 @@ import {
   dedupe,
   searchEuropePMC,
   searchOpenAlex,
+  type MatchMode,
   type SearchResult,
   type Source,
+  type SourcePage,
 } from '@/lib/search';
 
 type Hit = SearchResult & { classification: Classification };
 
 type SourceStatus = {
   loading: boolean;
-  count: number;
+  count: number; // retrieved so far
+  total: number; // total available upstream
   error?: string;
 };
 
@@ -118,6 +121,7 @@ export default function ResearchPage() {
     buildQueryFromKeywords(loadProtocol().positive)
   );
   const [pageSize, setPageSize] = useState(25);
+  const [matchMode, setMatchMode] = useState<MatchMode>('all');
   const [enabled, setEnabled] = useState<Record<Source, boolean>>({
     europepmc: true,
     openalex: true,
@@ -125,13 +129,20 @@ export default function ResearchPage() {
 
   // --- Result state ---
   const [hits, setHits] = useState<Hit[]>([]);
+  // Raw per-source results accumulated across pages, re-deduped on each append.
+  const [rawResults, setRawResults] = useState<Record<Source, SearchResult[]>>({
+    europepmc: [],
+    openalex: [],
+  });
+  const [page, setPage] = useState(0); // last page fetched (1-based; 0 = none)
   const [status, setStatus] = useState<Record<Source, SourceStatus>>({
-    europepmc: { loading: false, count: 0 },
-    openalex: { loading: false, count: 0 },
+    europepmc: { loading: false, count: 0, total: 0 },
+    openalex: { loading: false, count: 0, total: 0 },
   });
   const [overallError, setOverallError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Verdict | 'ALL'>('ALL');
   const [hasSearched, setHasSearched] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Pick up protocol changes if the user edits criteria in another tab.
   useEffect(() => {
@@ -145,77 +156,128 @@ export default function ResearchPage() {
   const noCriteria =
     protocol.positive.length === 0 && protocol.negative.length === 0;
 
-  const handleSearch = async () => {
+  // Dedupe accumulated raw results, classify against the protocol, and sort by
+  // verdict then score. Runs after every page fetch.
+  const rebuildHits = (raw: Record<Source, SearchResult[]>) => {
+    const merged = dedupe([raw.europepmc, raw.openalex]);
+    const classified: Hit[] = merged.map((r) => ({
+      ...r,
+      classification: classifyAbstract(
+        `${r.title}\n${r.abstract}`,
+        protocol.positive,
+        protocol.negative
+      ),
+    }));
+    classified.sort((a, b) => {
+      const v =
+        VERDICT_ORDER[a.classification.verdict] -
+        VERDICT_ORDER[b.classification.verdict];
+      if (v !== 0) return v;
+      return b.classification.score - a.classification.score;
+    });
+    setHits(classified);
+  };
+
+  // Fetch one page from each enabled source. `append` keeps prior pages.
+  const runSearch = async (pageToFetch: number, append: boolean) => {
     const q = query.trim();
     if (!q) return;
+    if (!enabled.europepmc && !enabled.openalex) {
+      setOverallError('Select at least one source.');
+      return;
+    }
     setOverallError(null);
     setHasSearched(true);
-    setHits([]);
-    setStatus({
-      europepmc: { loading: enabled.europepmc, count: 0 },
-      openalex: { loading: enabled.openalex, count: 0 },
-    });
+    if (append) setLoadingMore(true);
+    else {
+      setHits([]);
+      setRawResults({ europepmc: [], openalex: [] });
+    }
+    setStatus((s) => ({
+      europepmc: {
+        loading: enabled.europepmc,
+        count: append ? s.europepmc.count : 0,
+        total: append ? s.europepmc.total : 0,
+      },
+      openalex: {
+        loading: enabled.openalex,
+        count: append ? s.openalex.count : 0,
+        total: append ? s.openalex.total : 0,
+      },
+    }));
 
-    const calls: Array<Promise<{ source: Source; results: SearchResult[] }>> = [];
+    const fetchOne = (
+      src: Source,
+      fn: () => Promise<SourcePage>
+    ): Promise<{ source: Source; page: SourcePage | null; error?: string }> =>
+      fn()
+        .then((page) => ({ source: src, page }))
+        .catch((err: unknown) => ({
+          source: src,
+          page: null,
+          error: err instanceof Error ? err.message : String(err),
+        }));
+
+    const calls: Array<
+      Promise<{ source: Source; page: SourcePage | null; error?: string }>
+    > = [];
     if (enabled.europepmc) {
       calls.push(
-        searchEuropePMC(q, pageSize)
-          .then((results) => ({ source: 'europepmc' as Source, results }))
-          .catch((err) => {
-            setStatus((s) => ({
-              ...s,
-              europepmc: { loading: false, count: 0, error: String(err.message || err) },
-            }));
-            return { source: 'europepmc' as Source, results: [] };
+        fetchOne('europepmc', () =>
+          searchEuropePMC(q, {
+            page: pageToFetch,
+            pageSize,
+            synonym: matchMode === 'any',
           })
+        )
       );
     }
     if (enabled.openalex) {
       calls.push(
-        searchOpenAlex(q, pageSize)
-          .then((results) => ({ source: 'openalex' as Source, results }))
-          .catch((err) => {
-            setStatus((s) => ({
-              ...s,
-              openalex: { loading: false, count: 0, error: String(err.message || err) },
-            }));
-            return { source: 'openalex' as Source, results: [] };
-          })
+        fetchOne('openalex', () =>
+          searchOpenAlex(q, { page: pageToFetch, pageSize })
+        )
       );
     }
 
-    if (calls.length === 0) {
-      setOverallError('Select at least one source.');
-      return;
-    }
-
     const settled = await Promise.all(calls);
-    const lists: SearchResult[][] = [];
-    for (const { source, results } of settled) {
-      lists.push(results);
-      setStatus((s) => ({
-        ...s,
-        [source]: { loading: false, count: results.length, error: s[source].error },
-      }));
+
+    // Accumulate raw results, then rebuild the deduped/classified view.
+    // (Concurrent runs are prevented by the disabled Search / Load-more buttons.)
+    const base: Record<Source, SearchResult[]> = append
+      ? { europepmc: [...rawResults.europepmc], openalex: [...rawResults.openalex] }
+      : { europepmc: [], openalex: [] };
+    for (const { source, page } of settled) {
+      if (page) base[source] = [...base[source], ...page.results];
     }
-    const merged = dedupe(lists);
+    setRawResults(base);
+    rebuildHits(base);
 
-    const classified: Hit[] = merged.map((r) => {
-      const text = `${r.title}\n${r.abstract}`;
-      return {
-        ...r,
-        classification: classifyAbstract(text, protocol.positive, protocol.negative),
-      };
+    setStatus((s) => {
+      const updated = { ...s };
+      for (const { source, page, error } of settled) {
+        const prevCount = append ? s[source].count : 0;
+        updated[source] = {
+          loading: false,
+          count: page ? prevCount + page.results.length : prevCount,
+          total: page ? page.total : s[source].total,
+          error,
+        };
+      }
+      return updated;
     });
 
-    classified.sort((a, b) => {
-      const v = VERDICT_ORDER[a.classification.verdict] - VERDICT_ORDER[b.classification.verdict];
-      if (v !== 0) return v;
-      return b.classification.score - a.classification.score;
-    });
-
-    setHits(classified);
+    setPage(pageToFetch);
+    if (append) setLoadingMore(false);
   };
+
+  const handleSearch = () => runSearch(1, false);
+  const handleLoadMore = () => runSearch(page + 1, true);
+
+  // Whether any enabled source has more pages left to fetch.
+  const hasMore =
+    (enabled.europepmc && status.europepmc.count < status.europepmc.total) ||
+    (enabled.openalex && status.openalex.count < status.openalex.total);
 
   const filtered = useMemo(() => {
     if (filter === 'ALL') return hits;
@@ -367,7 +429,7 @@ export default function ResearchPage() {
                 Search Query
               </h2>
               <button
-                onClick={() => setQuery(buildQueryFromKeywords(protocol.positive))}
+                onClick={() => setQuery(buildQueryFromKeywords(protocol.positive, matchMode))}
                 className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
                 Load from Protocol
@@ -398,6 +460,30 @@ export default function ResearchPage() {
                     {SOURCE_META[src].label}
                   </button>
                 ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Match</label>
+                {([['all', 'Precise'], ['any', 'Broad']] as [MatchMode, string][]).map(
+                  ([mode, lbl]) => (
+                    <button
+                      key={mode}
+                      onClick={() => setMatchMode(mode)}
+                      title={
+                        mode === 'all'
+                          ? 'Require all terms (AND) — higher precision'
+                          : 'Any term (OR) + synonym expansion — higher recall'
+                      }
+                      className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                        matchMode === mode
+                          ? 'clay-tab-active'
+                          : 'clay-button text-neutral-400 dark:text-slate-500'
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  )
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -440,6 +526,8 @@ export default function ResearchPage() {
                       ? 'searching…'
                       : s.error
                       ? `error: ${s.error.slice(0, 60)}`
+                      : s.total > s.count
+                      ? `${s.count} of ${s.total.toLocaleString()}`
                       : `${s.count} hit${s.count === 1 ? '' : 's'}`}
                   </div>
                 );
@@ -496,18 +584,39 @@ export default function ResearchPage() {
                           >
                             {VERDICT_LABEL[v]}
                           </span>
-                          <span
-                            className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${SOURCE_META[h.source].tone}`}
-                          >
-                            {SOURCE_META[h.source].short}
-                          </span>
+                          {(h.sources ?? [h.source]).map((src) => (
+                            <span
+                              key={src}
+                              className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${SOURCE_META[src].tone}`}
+                              title={
+                                (h.sources ?? []).length > 1
+                                  ? 'Found in both databases'
+                                  : SOURCE_META[src].label
+                              }
+                            >
+                              {SOURCE_META[src].short}
+                            </span>
+                          ))}
+                          {h.isOA && (
+                            <span
+                              className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10"
+                              title="Open access"
+                            >
+                              OA
+                            </span>
+                          )}
                           {h.year && (
                             <span className="text-[10px] font-mono text-neutral-500 dark:text-slate-500 tracking-widest">
                               {h.year}
                             </span>
                           )}
+                          {typeof h.citedBy === 'number' && h.citedBy > 0 && (
+                            <span className="text-[10px] font-mono text-neutral-500 dark:text-slate-500 tracking-widest">
+                              {h.citedBy.toLocaleString()} cites
+                            </span>
+                          )}
                           {h.journal && (
-                            <span className="text-[10px] font-mono text-neutral-500 dark:text-slate-500 truncate max-w-[260px]">
+                            <span className="text-[10px] font-mono text-neutral-500 dark:text-slate-500 truncate max-w-[220px]">
                               {h.journal}
                             </span>
                           )}
@@ -578,6 +687,18 @@ export default function ResearchPage() {
                     );
                   })}
                 </ul>
+              )}
+
+              {hits.length > 0 && hasMore && (
+                <div className="flex justify-center pt-1">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="clay-button rounded-xl px-5 py-2.5 text-[12px] font-bold uppercase tracking-widest text-neutral-600 dark:text-slate-300 disabled:cursor-not-allowed active:scale-95"
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more results'}
+                  </button>
+                </div>
               )}
             </div>
           )}

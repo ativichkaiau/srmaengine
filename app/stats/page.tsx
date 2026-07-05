@@ -683,7 +683,7 @@ export default function StatsPage() {
                 disabled={busy}
                 className="clay-primary px-5 py-2.5 disabled:cursor-not-allowed text-[13px] font-bold rounded-xl active:scale-[0.98]"
               >
-                {busy ? 'Reading…' : `Read ${currentMode.label}`}
+                {busy ? 'Running…' : `Run ${currentMode.label}`}
               </button>
             </div>
 
@@ -1089,7 +1089,7 @@ function AIInterpretation({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] font-black uppercase tracking-[0.25em] text-neutral-600 dark:text-slate-300 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 obs-pulse"></span>
-            Ground Control
+            AI Interpretation
           </span>
           <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400 dark:text-slate-500 border border-black/10 dark:border-white/10 rounded px-1.5 py-0.5">
             ChatGPT · gpt-4o-mini
@@ -1100,20 +1100,20 @@ function AIInterpretation({
           disabled={busy}
           className="clay-primary px-4 py-2 disabled:cursor-not-allowed text-[11px] font-bold uppercase tracking-widest rounded-lg"
         >
-          {busy ? 'Reading…' : hasAny ? 'Re-read' : 'Ask Ground Control'}
+          {busy ? 'Interpreting…' : hasAny ? 'Re-interpret' : 'Interpret with AI'}
         </button>
       </div>
 
       {!hasAny && !busy && !error && (
         <p className="text-[12px] text-neutral-500 dark:text-slate-400 leading-relaxed">
-          Hail <strong>Ground Control</strong> for a plain-English reading, an
+          Click <strong>Interpret with AI</strong> for a plain-English summary, an
           assumption check, and an APA-style write-up of this analysis.
           (Requires <code className="font-mono text-[11px]">OPENAI_API_KEY</code> set on the Vercel project.)
         </p>
       )}
       {busy && (
         <p className="text-[12px] text-neutral-500 dark:text-slate-400 italic">
-          Raising Ground Control for a biostatistician&apos;s read…
+          Asking the model for a biostatistician&apos;s read…
         </p>
       )}
       {error && (

@@ -869,7 +869,7 @@ export default function SRMATelemetryPage() {
                     }}
                     className="clay-primary rounded-full px-7 py-3 text-[13px] font-black active:scale-95"
                   >
-                    {isLastIntroStep ? 'Open the Dome' : 'Next'}
+                    {isLastIntroStep ? 'Get Started' : 'Next'}
                   </button>
                 </div>
               </div>
@@ -1052,7 +1052,7 @@ export default function SRMATelemetryPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="text-[13px] font-bold text-neutral-700 dark:text-white flex items-center gap-2 transition-colors">
                       <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 obs-pulse"></span>
-                      Detected Candidates
+                      Suggested Keywords
                     </h3>
                     <span className="text-[9px] font-black text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 rounded uppercase tracking-widest">
                       + include · − exclude
@@ -1121,7 +1121,7 @@ export default function SRMATelemetryPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">Nothing logged yet.</p>
+                        <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">None yet.</p>
                       )}
                     </div>
                     <div>
@@ -1147,7 +1147,7 @@ export default function SRMATelemetryPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">Nothing logged yet.</p>
+                        <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">None yet.</p>
                       )}
                     </div>
                   </div>
@@ -1320,7 +1320,7 @@ export default function SRMATelemetryPage() {
                               })
                             ) : (
                               <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">
-                                No term signatures found.
+                                No keyword tokens detected.
                               </p>
                             )}
                           </div>
@@ -1333,7 +1333,7 @@ export default function SRMATelemetryPage() {
                 {/* Full Context Viewer */}
                 <div className="clay-soft p-5 rounded-2xl transition-all">
                   <h4 className="font-bold text-[13px] text-neutral-600 dark:text-slate-300 mb-3 flex justify-between items-center tracking-tight transition-colors">
-                    Full Transmission
+                    Full Context Viewer
                     <span className="text-[9px] bg-neutral-100 dark:bg-black/50 px-2 py-1 rounded border border-black/5 dark:border-white/5 uppercase tracking-widest text-neutral-500 dark:text-slate-500">Telemetry Feed</span>
                   </h4>
                   <div className="text-[13px] text-neutral-700 dark:text-slate-300 leading-relaxed bg-neutral-50/50 dark:bg-black/40 p-4 rounded-xl overflow-y-auto font-serif border border-black/5 dark:border-black custom-scrollbar max-h-48 transition-colors">

@@ -1,19 +1,40 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '@/components/ThemeToggle';
 import MobileTabBar from '@/components/MobileTabBar';
 import {
+  crosstab,
   getPyodide,
+  numericColumn,
+  parseDataset,
   parseNumbers,
   parseTable,
   runStats,
+  splitByGroup,
+  type Dataset,
   type StatMode,
   type StatPayload,
 } from '@/lib/stats';
 
 type Result = Record<string, unknown> | null;
+type InputSource = 'dataset' | 'manual';
+
+// A sample long-format dataset (one row per observation) for the data table.
+const SAMPLE_DATASET = `group\tscore\tage\tsex\timproved
+control\t21\t54\tF\tno
+control\t22\t61\tM\tno
+control\t19\t58\tF\tyes
+control\t23\t49\tM\tno
+control\t24\t63\tF\tno
+control\t20\t57\tM\tyes
+treatment\t27\t52\tF\tyes
+treatment\t29\t60\tM\tyes
+treatment\t31\t47\tF\tyes
+treatment\t28\t55\tM\tno
+treatment\t30\t62\tF\tyes
+treatment\t33\t50\tM\tyes`;
 
 const MODES: { id: StatMode; label: string; short: string; desc: string }[] = [
   {
@@ -232,6 +253,46 @@ function PChip({ p }: { p: number }) {
   );
 }
 
+function ColumnSelect({
+  label,
+  value,
+  onChange,
+  options,
+  dataset,
+  accent,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  options: number[];
+  dataset: Dataset;
+  accent?: string;
+}) {
+  return (
+    <div>
+      <label
+        className={`block text-[11px] font-bold uppercase tracking-widest mb-2 ${
+          accent ?? 'text-neutral-500 dark:text-slate-400'
+        }`}
+      >
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="clay-field w-full p-3 rounded-xl text-[13px] font-semibold text-neutral-700 dark:text-slate-200 focus:outline-none"
+      >
+        {options.length === 0 && <option value={-1}>No suitable column</option>}
+        {options.map((i) => (
+          <option key={i} value={i}>
+            {dataset.columns[i]} · {dataset.kinds[i]}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function StatsPage() {
   const [mode, setMode] = useState<StatMode>('descriptive');
 
@@ -244,6 +305,37 @@ export default function StatsPage() {
   const [tableText, setTableText] = useState('');
   const [xText, setXText] = useState('');
   const [yText, setYText] = useState('');
+
+  // --- Data table ("Jamovi-style"): paste once, then pick columns per test. ---
+  const [inputSource, setInputSource] = useState<InputSource>('dataset');
+  const [rawData, setRawData] = useState('');
+  const dataset: Dataset = useMemo(() => parseDataset(rawData), [rawData]);
+  const hasData = dataset.columns.length > 0 && dataset.rows.length > 0;
+
+  const numericCols = useMemo(
+    () => dataset.kinds.map((k, i) => (k === 'numeric' ? i : -1)).filter((i) => i >= 0),
+    [dataset]
+  );
+  const allCols = useMemo(
+    () => dataset.columns.map((_, i) => i),
+    [dataset]
+  );
+
+  // Column selections (indices). Resolved against valid candidates at use time,
+  // so a stale pick after a data change gracefully falls back to a valid column.
+  const [descCol, setDescCol] = useState(0);
+  const [ttValueCol, setTtValueCol] = useState(0);
+  const [ttGroupCol, setTtGroupCol] = useState(0);
+  const [anValueCol, setAnValueCol] = useState(0);
+  const [anGroupCol, setAnGroupCol] = useState(0);
+  const [chiRowCol, setChiRowCol] = useState(0);
+  const [chiColCol, setChiColCol] = useState(0);
+  const [corrXCol, setCorrXCol] = useState(0);
+  const [corrYCol, setCorrYCol] = useState(1);
+
+  // Return `sel` if it's a valid candidate, else the first candidate (or -1).
+  const resolve = (sel: number, candidates: number[]): number =>
+    candidates.includes(sel) ? sel : candidates[0] ?? -1;
 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
@@ -281,53 +373,138 @@ export default function StatsPage() {
     setAiText('');
     setAiError(null);
     try {
+      const useData = inputSource === 'dataset';
+      if (useData && !hasData)
+        throw new Error('Paste a data table first (or switch to Manual entry).');
+
       let payload: StatPayload;
       switch (mode) {
         case 'descriptive': {
-          const g = parseNumbers(groupText);
-          if (g.length < 1) throw new Error('Paste at least one number.');
+          const g = useData
+            ? numericColumn(dataset, resolve(descCol, numericCols))
+            : parseNumbers(groupText);
+          if (g.length < 1)
+            throw new Error(
+              useData
+                ? 'The chosen column has no numeric values.'
+                : 'Paste at least one number.'
+            );
           payload = { group: g };
           break;
         }
         case 'ttest': {
-          const g1 = parseNumbers(group1Text);
-          const g2 = parseNumbers(group2Text);
-          if (g1.length < 2 || g2.length < 2)
-            throw new Error('Each group needs at least 2 values.');
-          payload = { group1: g1, group2: g2, paired };
+          if (useData) {
+            const vCol = resolve(ttValueCol, numericCols);
+            const gCol = resolve(ttGroupCol, allCols);
+            if (vCol < 0 || gCol < 0)
+              throw new Error('Pick an outcome column and a grouping column.');
+            if (vCol === gCol)
+              throw new Error('Outcome and group must be different columns.');
+            const groups = splitByGroup(dataset, vCol, gCol);
+            if (groups.length !== 2)
+              throw new Error(
+                `The grouping column must have exactly 2 groups (found ${groups.length}: ${groups
+                  .map((g) => g.level)
+                  .join(', ') || 'none'}).`
+              );
+            const [a, b] = groups;
+            if (a.values.length < 2 || b.values.length < 2)
+              throw new Error('Each group needs at least 2 values.');
+            payload = { group1: a.values, group2: b.values, paired };
+          } else {
+            const g1 = parseNumbers(group1Text);
+            const g2 = parseNumbers(group2Text);
+            if (g1.length < 2 || g2.length < 2)
+              throw new Error('Each group needs at least 2 values.');
+            payload = { group1: g1, group2: g2, paired };
+          }
           break;
         }
         case 'anova': {
-          const groups = anovaGroups
-            .map((t) => parseNumbers(t))
-            .filter((g) => g.length > 0);
-          if (groups.length < 2)
-            throw new Error('Provide values for at least 2 groups.');
-          if (groups.some((g) => g.length < 2))
-            throw new Error('Each group needs at least 2 values.');
-          payload = { groups };
+          if (useData) {
+            const vCol = resolve(anValueCol, numericCols);
+            const gCol = resolve(anGroupCol, allCols);
+            if (vCol < 0 || gCol < 0)
+              throw new Error('Pick an outcome column and a grouping column.');
+            if (vCol === gCol)
+              throw new Error('Outcome and group must be different columns.');
+            const split = splitByGroup(dataset, vCol, gCol);
+            const groups = split.map((s) => s.values);
+            if (groups.length < 2)
+              throw new Error('The grouping column needs at least 2 groups.');
+            if (groups.some((g) => g.length < 2))
+              throw new Error('Each group needs at least 2 values.');
+            payload = { groups };
+          } else {
+            const groups = anovaGroups
+              .map((t) => parseNumbers(t))
+              .filter((g) => g.length > 0);
+            if (groups.length < 2)
+              throw new Error('Provide values for at least 2 groups.');
+            if (groups.some((g) => g.length < 2))
+              throw new Error('Each group needs at least 2 values.');
+            payload = { groups };
+          }
           break;
         }
         case 'chi2': {
-          const tbl = parseTable(tableText);
-          if (tbl.length < 2 || (tbl[0]?.length ?? 0) < 2)
-            throw new Error(
-              'Provide a contingency table of at least 2 rows × 2 columns.'
-            );
-          payload = { observed: tbl };
+          if (useData) {
+            const rCol = resolve(chiRowCol, allCols);
+            const cCol = resolve(chiColCol, allCols);
+            if (rCol < 0 || cCol < 0)
+              throw new Error('Pick two categorical columns.');
+            if (rCol === cCol)
+              throw new Error('Choose two different columns.');
+            const { table, rowLevels, colLevels } = crosstab(dataset, rCol, cCol);
+            if (rowLevels.length < 2 || colLevels.length < 2)
+              throw new Error(
+                'Both columns need at least 2 categories to cross-tabulate.'
+              );
+            payload = { observed: table };
+          } else {
+            const tbl = parseTable(tableText);
+            if (tbl.length < 2 || (tbl[0]?.length ?? 0) < 2)
+              throw new Error(
+                'Provide a contingency table of at least 2 rows × 2 columns.'
+              );
+            payload = { observed: tbl };
+          }
           break;
         }
         case 'correlation':
         case 'regression': {
-          const x = parseNumbers(xText);
-          const y = parseNumbers(yText);
-          if (x.length !== y.length)
-            throw new Error(
-              `X and Y must be the same length (got ${x.length} vs ${y.length}).`
-            );
-          if (x.length < 3)
-            throw new Error('Need at least 3 paired observations.');
-          payload = { x, y };
+          if (useData) {
+            const xCol = resolve(corrXCol, numericCols);
+            const yCol = resolve(corrYCol, numericCols);
+            if (xCol < 0 || yCol < 0)
+              throw new Error('Pick two numeric columns (X and Y).');
+            if (xCol === yCol)
+              throw new Error('X and Y must be different columns.');
+            // Pair row-wise, dropping rows where either value is non-finite.
+            const xs: number[] = [];
+            const ys: number[] = [];
+            for (const row of dataset.rows) {
+              const xv = Number(row[xCol]);
+              const yv = Number(row[yCol]);
+              if (Number.isFinite(xv) && Number.isFinite(yv)) {
+                xs.push(xv);
+                ys.push(yv);
+              }
+            }
+            if (xs.length < 3)
+              throw new Error('Need at least 3 complete paired rows.');
+            payload = { x: xs, y: ys };
+          } else {
+            const x = parseNumbers(xText);
+            const y = parseNumbers(yText);
+            if (x.length !== y.length)
+              throw new Error(
+                `X and Y must be the same length (got ${x.length} vs ${y.length}).`
+              );
+            if (x.length < 3)
+              throw new Error('Need at least 3 paired observations.');
+            payload = { x, y };
+          }
           break;
         }
       }
@@ -505,6 +682,118 @@ export default function StatsPage() {
             </span>
           </div>
 
+          {/* Data source */}
+          <div className="clay p-5 rounded-2xl space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span>
+                Data
+              </h2>
+              <div className="flex items-center gap-1 clay-inset rounded-lg p-1">
+                {(
+                  [
+                    ['dataset', 'Data table'],
+                    ['manual', 'Manual entry'],
+                  ] as [InputSource, string][]
+                ).map(([src, lbl]) => (
+                  <button
+                    key={src}
+                    onClick={() => setInputSource(src)}
+                    className={`px-3 py-1.5 text-[11px] font-bold rounded-md transition-all ${
+                      inputSource === src
+                        ? 'clay-tab-active'
+                        : 'text-neutral-500 dark:text-slate-400'
+                    }`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {inputSource === 'dataset' ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] text-neutral-500 dark:text-slate-400">
+                    Paste a table (CSV or tab-separated). The first row is used as column names.
+                  </p>
+                  <button
+                    onClick={() => setRawData(SAMPLE_DATASET)}
+                    className="clay-button rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 shrink-0"
+                  >
+                    Load sample
+                  </button>
+                </div>
+                <textarea
+                  value={rawData}
+                  onChange={(e) => setRawData(e.target.value)}
+                  placeholder={'group\tscore\ncontrol\t21\ntreatment\t27'}
+                  className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"
+                />
+                {hasData ? (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-mono text-neutral-500 dark:text-slate-400">
+                      {dataset.rows.length} rows · {dataset.columns.length} columns
+                    </div>
+                    <div className="clay-inset rounded-xl overflow-auto max-h-52 custom-scrollbar">
+                      <table className="w-full text-[12px] font-mono border-collapse">
+                        <thead>
+                          <tr>
+                            {dataset.columns.map((c, i) => (
+                              <th
+                                key={i}
+                                className="text-left px-3 py-2 sticky top-0 bg-clip-padding whitespace-nowrap border-b border-black/10 dark:border-white/10"
+                              >
+                                <span className="font-bold text-neutral-800 dark:text-slate-100">{c || `V${i + 1}`}</span>
+                                <span
+                                  className={`ml-1.5 text-[9px] uppercase tracking-widest ${
+                                    dataset.kinds[i] === 'numeric'
+                                      ? 'text-cyan-600 dark:text-cyan-300'
+                                      : 'text-violet-600 dark:text-violet-300'
+                                  }`}
+                                >
+                                  {dataset.kinds[i] === 'numeric' ? '#' : 'abc'}
+                                </span>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dataset.rows.slice(0, 8).map((r, ri) => (
+                            <tr key={ri} className="odd:bg-black/[0.02] dark:odd:bg-white/[0.02]">
+                              {r.map((cell, ci) => (
+                                <td
+                                  key={ci}
+                                  className="px-3 py-1.5 whitespace-nowrap text-neutral-600 dark:text-slate-300 border-b border-black/5 dark:border-white/5"
+                                >
+                                  {cell === '' ? '—' : cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {dataset.rows.length > 8 && (
+                      <div className="text-[10px] font-mono text-neutral-400 dark:text-slate-500">
+                        Showing first 8 of {dataset.rows.length} rows.
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-neutral-400 dark:text-slate-500 italic">
+                    No data yet — paste a table above or load the sample. Each analysis then
+                    picks its variables from your columns.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-[12px] text-neutral-500 dark:text-slate-400">
+                Manual entry: type values directly into each analysis below.
+              </p>
+            )}
+          </div>
+
           {/* Mode tabs */}
           <div className="clay p-5 rounded-2xl space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -518,10 +807,14 @@ export default function StatsPage() {
                 </p>
               </div>
               <button
-                onClick={() => sampleFillers[mode]()}
+                onClick={() =>
+                  inputSource === 'dataset'
+                    ? setRawData(SAMPLE_DATASET)
+                    : sampleFillers[mode]()
+                }
                 className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
-                Fill Sample Data
+                {inputSource === 'dataset' ? 'Load sample' : 'Fill Sample Data'}
               </button>
             </div>
 
@@ -547,44 +840,77 @@ export default function StatsPage() {
             </div>
 
             {/* Inputs per mode */}
-            {mode === 'descriptive' && (
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
-                  Sample values (comma / space / newline separated)
-                </label>
-                <textarea
-                  value={groupText}
-                  onChange={(e) => setGroupText(e.target.value)}
-                  placeholder="72, 75, 78, 80, 81, 82, 84..."
-                  className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"
-                />
-              </div>
-            )}
+            {mode === 'descriptive' &&
+              (inputSource === 'dataset' && hasData ? (
+                <div className="max-w-xs">
+                  <ColumnSelect
+                    label="Variable (numeric)"
+                    value={resolve(descCol, numericCols)}
+                    onChange={setDescCol}
+                    options={numericCols}
+                    dataset={dataset}
+                    accent="text-cyan-600 dark:text-cyan-300"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+                    Sample values (comma / space / newline separated)
+                  </label>
+                  <textarea
+                    value={groupText}
+                    onChange={(e) => setGroupText(e.target.value)}
+                    placeholder="72, 75, 78, 80, 81, 82, 84..."
+                    className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"
+                  />
+                </div>
+              ))}
 
             {mode === 'ttest' && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">
-                      Group 1 (control)
-                    </label>
-                    <textarea
-                      value={group1Text}
-                      onChange={(e) => setGroup1Text(e.target.value)}
-                      className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
+                {inputSource === 'dataset' && hasData ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <ColumnSelect
+                      label="Outcome (numeric)"
+                      value={resolve(ttValueCol, numericCols)}
+                      onChange={setTtValueCol}
+                      options={numericCols}
+                      dataset={dataset}
+                      accent="text-cyan-600 dark:text-cyan-300"
+                    />
+                    <ColumnSelect
+                      label="Grouping variable (2 groups)"
+                      value={resolve(ttGroupCol, allCols)}
+                      onChange={setTtGroupCol}
+                      options={allCols}
+                      dataset={dataset}
+                      accent="text-violet-600 dark:text-violet-300"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">
-                      Group 2 (treatment)
-                    </label>
-                    <textarea
-                      value={group2Text}
-                      onChange={(e) => setGroup2Text(e.target.value)}
-                      className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
-                    />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">
+                        Group 1 (control)
+                      </label>
+                      <textarea
+                        value={group1Text}
+                        onChange={(e) => setGroup1Text(e.target.value)}
+                        className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">
+                        Group 2 (treatment)
+                      </label>
+                      <textarea
+                        value={group2Text}
+                        onChange={(e) => setGroup2Text(e.target.value)}
+                        className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
                 <label className="inline-flex items-center gap-2 text-[12px] font-bold text-neutral-600 dark:text-slate-300 cursor-pointer">
                   <input
                     type="checkbox"
@@ -597,7 +923,27 @@ export default function StatsPage() {
               </div>
             )}
 
-            {mode === 'anova' && (
+            {mode === 'anova' &&
+              (inputSource === 'dataset' && hasData ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ColumnSelect
+                    label="Outcome (numeric)"
+                    value={resolve(anValueCol, numericCols)}
+                    onChange={setAnValueCol}
+                    options={numericCols}
+                    dataset={dataset}
+                    accent="text-cyan-600 dark:text-cyan-300"
+                  />
+                  <ColumnSelect
+                    label="Grouping variable (2+ groups)"
+                    value={resolve(anGroupCol, allCols)}
+                    onChange={setAnGroupCol}
+                    options={allCols}
+                    dataset={dataset}
+                    accent="text-violet-600 dark:text-violet-300"
+                  />
+                </div>
+              ) : (
               <div className="space-y-3">
                 {anovaGroups.map((text, i) => (
                   <div key={i}>
@@ -636,46 +982,86 @@ export default function StatsPage() {
                   + Add Group
                 </button>
               </div>
-            )}
+              ))}
 
-            {mode === 'chi2' && (
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
-                  Contingency table — one row per line, cells separated by comma/space
-                </label>
-                <textarea
-                  value={tableText}
-                  onChange={(e) => setTableText(e.target.value)}
-                  placeholder="30, 10&#10;20, 40"
-                  className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
-                />
-              </div>
-            )}
-
-            {(mode === 'correlation' || mode === 'regression') && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {mode === 'chi2' &&
+              (inputSource === 'dataset' && hasData ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ColumnSelect
+                    label="Row variable"
+                    value={resolve(chiRowCol, allCols)}
+                    onChange={setChiRowCol}
+                    options={allCols}
+                    dataset={dataset}
+                    accent="text-cyan-600 dark:text-cyan-300"
+                  />
+                  <ColumnSelect
+                    label="Column variable"
+                    value={resolve(chiColCol, allCols)}
+                    onChange={setChiColCol}
+                    options={allCols}
+                    dataset={dataset}
+                    accent="text-violet-600 dark:text-violet-300"
+                  />
+                </div>
+              ) : (
                 <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">
-                    X values
+                  <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+                    Contingency table — one row per line, cells separated by comma/space
                   </label>
                   <textarea
-                    value={xText}
-                    onChange={(e) => setXText(e.target.value)}
+                    value={tableText}
+                    onChange={(e) => setTableText(e.target.value)}
+                    placeholder="30, 10&#10;20, 40"
                     className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">
-                    Y values (same length as X)
-                  </label>
-                  <textarea
-                    value={yText}
-                    onChange={(e) => setYText(e.target.value)}
-                    className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
+              ))}
+
+            {(mode === 'correlation' || mode === 'regression') &&
+              (inputSource === 'dataset' && hasData ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ColumnSelect
+                    label="X (numeric)"
+                    value={resolve(corrXCol, numericCols)}
+                    onChange={setCorrXCol}
+                    options={numericCols}
+                    dataset={dataset}
+                    accent="text-cyan-600 dark:text-cyan-300"
+                  />
+                  <ColumnSelect
+                    label="Y (numeric)"
+                    value={resolve(corrYCol, numericCols)}
+                    onChange={setCorrYCol}
+                    options={numericCols}
+                    dataset={dataset}
+                    accent="text-violet-600 dark:text-violet-300"
                   />
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2">
+                      X values
+                    </label>
+                    <textarea
+                      value={xText}
+                      onChange={(e) => setXText(e.target.value)}
+                      className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">
+                      Y values (same length as X)
+                    </label>
+                    <textarea
+                      value={yText}
+                      onChange={(e) => setYText(e.target.value)}
+                      className="clay-field w-full h-28 p-4 rounded-xl text-[13px] font-mono focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+              ))}
 
             <div className="flex items-center justify-end gap-3 pt-1">
               <button

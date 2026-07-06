@@ -516,3 +516,141 @@ export function parseTable(text: string): number[][] {
     r.length === width ? r : [...r, ...Array(width - r.length).fill(0)]
   );
 }
+
+// ============================================================
+// Tabular data ("Jamovi-style") — paste a table once, then pick columns.
+// ============================================================
+
+export type ColumnKind = 'numeric' | 'categorical';
+
+export type Dataset = {
+  columns: string[];
+  rows: string[][]; // cell strings aligned to columns
+  kinds: ColumnKind[]; // detected per-column type
+};
+
+// Auto-detect the delimiter from the header line: tab > comma > semicolon > whitespace.
+function detectDelimiter(sample: string): RegExp {
+  if (sample.includes('\t')) return /\t/;
+  if (sample.includes(',')) return /,/;
+  if (sample.includes(';')) return /;/;
+  return /\s+/;
+}
+
+// Parse pasted CSV/TSV into a typed dataset. The first row is treated as a
+// header unless it is entirely numeric (then synthetic V1..Vn names are used).
+export function parseDataset(text: string): Dataset {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.replace(/\s+$/, ''))
+    .filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { columns: [], rows: [], kinds: [] };
+
+  const delim = detectDelimiter(lines[0]);
+  const split = (l: string) => l.split(delim).map((c) => c.trim());
+
+  let header = split(lines[0]);
+  const firstAllNumeric =
+    header.length > 0 &&
+    header.every((c) => c !== '' && Number.isFinite(Number(c)));
+
+  let dataLines: string[];
+  if (firstAllNumeric) {
+    header = header.map((_, i) => `V${i + 1}`);
+    dataLines = lines; // first row is data, not a header
+  } else {
+    dataLines = lines.slice(1);
+  }
+
+  const width = header.length;
+  const rows = dataLines.map((l) => {
+    const cells = split(l);
+    if (cells.length < width) {
+      return [...cells, ...Array(width - cells.length).fill('')];
+    }
+    return cells.slice(0, width);
+  });
+
+  const kinds: ColumnKind[] = header.map((_, ci) => {
+    let nonEmpty = 0;
+    let numeric = 0;
+    for (const r of rows) {
+      const v = r[ci];
+      if (v === undefined || v === '') continue;
+      nonEmpty += 1;
+      if (Number.isFinite(Number(v))) numeric += 1;
+    }
+    return nonEmpty > 0 && numeric / nonEmpty >= 0.8 ? 'numeric' : 'categorical';
+  });
+
+  return { columns: header, rows, kinds };
+}
+
+// Finite numeric values from a column.
+export function numericColumn(ds: Dataset, col: number): number[] {
+  const out: number[] = [];
+  for (const r of ds.rows) {
+    const n = Number(r[col]);
+    if (Number.isFinite(n) && r[col] !== '' && r[col] !== undefined) out.push(n);
+  }
+  return out;
+}
+
+// Distinct non-empty levels of a column, in first-seen order.
+export function columnLevels(ds: Dataset, col: number): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of ds.rows) {
+    const v = (r[col] ?? '').trim();
+    if (!v) continue;
+    if (!seen.has(v)) {
+      seen.add(v);
+      out.push(v);
+    }
+  }
+  return out;
+}
+
+// Split a numeric value column by a grouping column → { level, values }[].
+// Rows with a non-finite value or blank group are dropped.
+export function splitByGroup(
+  ds: Dataset,
+  valueCol: number,
+  groupCol: number
+): { level: string; values: number[] }[] {
+  const map = new Map<string, number[]>();
+  const order: string[] = [];
+  for (const r of ds.rows) {
+    const g = (r[groupCol] ?? '').trim();
+    const raw = r[valueCol];
+    const v = Number(raw);
+    if (!g || raw === '' || raw === undefined || !Number.isFinite(v)) continue;
+    if (!map.has(g)) {
+      map.set(g, []);
+      order.push(g);
+    }
+    map.get(g)!.push(v);
+  }
+  return order.map((level) => ({ level, values: map.get(level)! }));
+}
+
+// Cross-tabulate two categorical columns → contingency table + level labels.
+export function crosstab(
+  ds: Dataset,
+  rowCol: number,
+  colCol: number
+): { table: number[][]; rowLevels: string[]; colLevels: string[] } {
+  const rowLevels = columnLevels(ds, rowCol);
+  const colLevels = columnLevels(ds, colCol);
+  const rIdx = new Map(rowLevels.map((l, i) => [l, i] as const));
+  const cIdx = new Map(colLevels.map((l, i) => [l, i] as const));
+  const table = rowLevels.map(() => colLevels.map(() => 0));
+  for (const r of ds.rows) {
+    const rv = (r[rowCol] ?? '').trim();
+    const cv = (r[colCol] ?? '').trim();
+    const ri = rIdx.get(rv);
+    const ci = cIdx.get(cv);
+    if (ri !== undefined && ci !== undefined) table[ri][ci] += 1;
+  }
+  return { table, rowLevels, colLevels };
+}

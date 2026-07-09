@@ -73,6 +73,12 @@ const MODES: { id: StatMode; label: string; short: string; desc: string }[] = [
     short: 'REG',
     desc: 'Simple linear regression of y on x.',
   },
+  {
+    id: 'meta',
+    label: 'Meta-analysis',
+    short: 'META',
+    desc: 'Pool study effect sizes; forest & funnel plots with heterogeneity.',
+  },
 ];
 
 const fmt = (n: number, digits = 4): string => {
@@ -253,6 +259,302 @@ function PChip({ p }: { p: number }) {
   );
 }
 
+// ---------- Meta-analysis result + plots ----------
+
+type Pooled = {
+  estimate: number;
+  se: number;
+  ci_low: number;
+  ci_high: number;
+  z: number;
+  p: number | null;
+};
+type MetaStudy = {
+  index: number;
+  yi: number;
+  sei: number;
+  ci_low: number;
+  ci_high: number;
+  w_fixed: number;
+  w_random: number;
+};
+
+const linScale =
+  (d0: number, d1: number, r0: number, r1: number) =>
+  (v: number): number =>
+    d1 === d0 ? (r0 + r1) / 2 : r0 + ((v - d0) / (d1 - d0)) * (r1 - r0);
+
+function niceTicks(min: number, max: number, count = 5): number[] {
+  if (!isFinite(min) || !isFinite(max) || min === max) return [min];
+  const out: number[] = [];
+  for (let i = 0; i < count; i++) out.push(min + ((max - min) * i) / (count - 1));
+  return out;
+}
+
+function ForestPlot({
+  studies,
+  labels,
+  random,
+  log,
+}: {
+  studies: MetaStudy[];
+  labels: string[];
+  random: Pooled;
+  log: boolean;
+}) {
+  const disp = (v: number) => (log ? Math.exp(v) : v);
+  const W = 720;
+  const rowH = 26;
+  const top = 24;
+  const plotL = 168;
+  const plotR = 520;
+  const diamondRow = top + studies.length * rowH + 12;
+  const axisY = diamondRow + 30;
+  const H = axisY + 34;
+
+  const lo = Math.min(...studies.map((s) => s.ci_low), random.ci_low, 0);
+  const hi = Math.max(...studies.map((s) => s.ci_high), random.ci_high, 0);
+  const pad = (hi - lo) * 0.06 || 1;
+  const x = linScale(lo - pad, hi + pad, plotL, plotR);
+  const nullX = x(0);
+  const maxW = Math.max(...studies.map((s) => s.w_random), 1);
+  const sqSize = (w: number) => 5 + (Math.sqrt(w / maxW) || 0) * 9;
+  const fmtNum = (v: number) => fmt(disp(v), log ? 2 : 3);
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full text-neutral-600 dark:text-slate-300"
+      role="img"
+      aria-label="Forest plot"
+    >
+      {/* header */}
+      <text x={12} y={16} className="fill-neutral-500 dark:fill-slate-400" fontSize="11" fontWeight="700">Study</text>
+      <text x={plotR + 6} y={16} className="fill-neutral-500 dark:fill-slate-400" fontSize="11" fontWeight="700">
+        {log ? 'Ratio [95% CI]' : 'Effect [95% CI]'}
+      </text>
+      {/* null reference line */}
+      <line x1={nullX} y1={top - 4} x2={nullX} y2={axisY} stroke="currentColor" strokeOpacity="0.35" strokeDasharray="4 3" />
+      {/* studies */}
+      {studies.map((s, i) => {
+        const cy = top + i * rowH + rowH / 2;
+        const sz = sqSize(s.w_random);
+        return (
+          <g key={i}>
+            <text x={12} y={cy + 3.5} fontSize="11.5" className="fill-neutral-700 dark:fill-slate-200">
+              {(labels[i] ?? `Study ${i + 1}`).slice(0, 24)}
+            </text>
+            <line x1={x(s.ci_low)} y1={cy} x2={x(s.ci_high)} y2={cy} stroke="currentColor" strokeOpacity="0.6" strokeWidth="1.4" />
+            <rect x={x(s.yi) - sz / 2} y={cy - sz / 2} width={sz} height={sz} className="fill-cyan-600 dark:fill-cyan-300" />
+            <text x={plotR + 6} y={cy + 3.5} fontSize="10.5" className="fill-neutral-600 dark:fill-slate-300" fontFamily="monospace">
+              {fmtNum(s.yi)} [{fmtNum(s.ci_low)}, {fmtNum(s.ci_high)}]
+            </text>
+          </g>
+        );
+      })}
+      {/* random-effects diamond */}
+      <polygon
+        points={`${x(random.ci_low)},${diamondRow} ${x(random.estimate)},${diamondRow - 8} ${x(random.ci_high)},${diamondRow} ${x(random.estimate)},${diamondRow + 8}`}
+        className="fill-violet-600 dark:fill-violet-300 stroke-violet-700 dark:stroke-violet-200"
+        strokeWidth="1"
+      />
+      <text x={12} y={diamondRow + 3.5} fontSize="11.5" fontWeight="700" className="fill-neutral-800 dark:fill-white">Random effects</text>
+      <text x={plotR + 6} y={diamondRow + 3.5} fontSize="10.5" fontWeight="700" className="fill-neutral-800 dark:fill-white" fontFamily="monospace">
+        {fmtNum(random.estimate)} [{fmtNum(random.ci_low)}, {fmtNum(random.ci_high)}]
+      </text>
+      {/* x-axis */}
+      <line x1={plotL} y1={axisY} x2={plotR} y2={axisY} stroke="currentColor" strokeOpacity="0.4" />
+      {niceTicks(lo - pad, hi + pad).map((t, i) => (
+        <g key={i}>
+          <line x1={x(t)} y1={axisY} x2={x(t)} y2={axisY + 4} stroke="currentColor" strokeOpacity="0.4" />
+          <text x={x(t)} y={axisY + 16} fontSize="9.5" textAnchor="middle" className="fill-neutral-500 dark:fill-slate-400" fontFamily="monospace">
+            {fmt(disp(t), log ? 2 : 2)}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function FunnelPlot({
+  studies,
+  random,
+  log,
+}: {
+  studies: MetaStudy[];
+  random: Pooled;
+  log: boolean;
+}) {
+  const disp = (v: number) => (log ? Math.exp(v) : v);
+  const W = 460;
+  const H = 340;
+  const l = 46;
+  const r = 440;
+  const t = 18;
+  const b = 288;
+  const maxSE = Math.max(...studies.map((s) => s.sei), random.se) * 1.05 || 1;
+  const spread = 1.96 * maxSE;
+  const xlo = Math.min(...studies.map((s) => s.yi), random.estimate - spread);
+  const xhi = Math.max(...studies.map((s) => s.yi), random.estimate + spread);
+  const xpad = (xhi - xlo) * 0.05 || 1;
+  const x = linScale(xlo - xpad, xhi + xpad, l, r);
+  const y = linScale(0, maxSE, t, b); // SE 0 at top
+  const cx = x(random.estimate);
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full text-neutral-600 dark:text-slate-300"
+      role="img"
+      aria-label="Funnel plot"
+    >
+      {/* axes */}
+      <line x1={l} y1={t} x2={l} y2={b} stroke="currentColor" strokeOpacity="0.4" />
+      <line x1={l} y1={b} x2={r} y2={b} stroke="currentColor" strokeOpacity="0.4" />
+      {/* pseudo 95% funnel */}
+      <line x1={cx} y1={y(0)} x2={x(random.estimate - spread)} y2={y(maxSE)} stroke="currentColor" strokeOpacity="0.3" strokeDasharray="4 3" />
+      <line x1={cx} y1={y(0)} x2={x(random.estimate + spread)} y2={y(maxSE)} stroke="currentColor" strokeOpacity="0.3" strokeDasharray="4 3" />
+      {/* pooled line */}
+      <line x1={cx} y1={t} x2={cx} y2={b} className="stroke-violet-500 dark:stroke-violet-300" strokeOpacity="0.7" strokeDasharray="5 3" />
+      {/* points */}
+      {studies.map((s, i) => (
+        <circle key={i} cx={x(s.yi)} cy={y(s.sei)} r={4} className="fill-cyan-600 dark:fill-cyan-300" fillOpacity="0.85" />
+      ))}
+      {/* axis labels */}
+      <text x={(l + r) / 2} y={H - 4} fontSize="10" textAnchor="middle" className="fill-neutral-500 dark:fill-slate-400">
+        {log ? 'Effect (ratio scale, log units)' : 'Effect size'}
+      </text>
+      <text x={14} y={(t + b) / 2} fontSize="10" textAnchor="middle" transform={`rotate(-90 14 ${(t + b) / 2})`} className="fill-neutral-500 dark:fill-slate-400">
+        Standard error
+      </text>
+      {niceTicks(xlo - xpad, xhi + xpad, 5).map((tv, i) => (
+        <text key={i} x={x(tv)} y={b + 14} fontSize="9" textAnchor="middle" className="fill-neutral-400 dark:fill-slate-500" fontFamily="monospace">
+          {fmt(disp(tv), 2)}
+        </text>
+      ))}
+      {niceTicks(0, maxSE, 4).map((tv, i) => (
+        <text key={i} x={l - 6} y={y(tv) + 3} fontSize="9" textAnchor="end" className="fill-neutral-400 dark:fill-slate-500" fontFamily="monospace">
+          {fmt(tv, 2)}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+function MetaResult({
+  result,
+  meta,
+}: {
+  result: Record<string, unknown>;
+  meta: { labels: string[]; log: boolean } | null;
+}) {
+  const log = meta?.log ?? false;
+  const studies = (result.studies as MetaStudy[]) ?? [];
+  const random = result.random as Pooled;
+  const fixed = result.fixed as Pooled;
+  const het = result.heterogeneity as {
+    Q: number;
+    df: number;
+    p: number | null;
+    I2: number;
+    tau2: number;
+  };
+  const egger = result.egger as {
+    intercept: number | null;
+    se: number | null;
+    p: number | null;
+    note: string;
+  };
+  const labels =
+    meta?.labels ?? studies.map((_, i) => `Study ${i + 1}`);
+  const disp = (v: number) => (log ? Math.exp(v) : v);
+  const showCI = (p: Pooled) =>
+    `${fmt(disp(p.estimate), log ? 3 : 3)} [${fmt(disp(p.ci_low), 3)}, ${fmt(disp(p.ci_high), 3)}]`;
+
+  return (
+    <div className="space-y-4">
+      <div className="clay p-5 rounded-2xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+            Meta-analysis · {String(result.k)} studies{log ? ' · ratio scale' : ''}
+          </div>
+          {random.p !== null && <PChip p={Number(random.p)} />}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile
+            label="Random effect"
+            value={showCI(random)}
+            accent="text-violet-600 dark:text-violet-300"
+          />
+          <StatTile label="Fixed effect" value={showCI(fixed)} />
+          <StatTile label="I² (heterogeneity)" value={`${fmt(het.I2, 1)}%`} />
+          <StatTile label="τ² (between-study var)" value={fmt(het.tau2, 4)} />
+          <StatTile
+            label={`Cochran's Q (df ${het.df})`}
+            value={fmt(het.Q, 2)}
+          />
+          <StatTile label="Q p-value" value={fmtOptionalP(het.p)} />
+          <StatTile
+            label="Egger intercept"
+            value={egger.intercept === null ? '—' : fmt(egger.intercept, 3)}
+          />
+          <StatTile label="Egger p" value={fmtOptionalP(egger.p)} />
+        </div>
+      </div>
+
+      <div className="clay-soft p-5 rounded-2xl space-y-2">
+        <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+          Forest plot
+        </div>
+        <div className="overflow-x-auto">
+          <ForestPlot studies={studies} labels={labels} random={random} log={log} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="clay-soft p-5 rounded-2xl space-y-2">
+          <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+            Funnel plot
+          </div>
+          <FunnelPlot studies={studies} random={random} log={log} />
+          <p className="text-[11px] text-neutral-500 dark:text-slate-400 leading-relaxed">
+            {egger.note}
+          </p>
+        </div>
+        <div className="clay-soft p-5 rounded-2xl overflow-x-auto">
+          <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+            Per-study
+          </div>
+          <table className="w-full text-[12px] font-mono border-collapse">
+            <thead>
+              <tr className="text-neutral-500 dark:text-slate-400">
+                <th className="text-left px-2 py-1">Study</th>
+                <th className="text-right px-2 py-1">{log ? 'Ratio' : 'Effect'}</th>
+                <th className="text-right px-2 py-1">95% CI</th>
+                <th className="text-right px-2 py-1">Weight</th>
+              </tr>
+            </thead>
+            <tbody>
+              {studies.map((s, i) => (
+                <tr key={i} className="odd:bg-black/[0.02] dark:odd:bg-white/[0.02]">
+                  <td className="px-2 py-1 text-neutral-700 dark:text-slate-200 whitespace-nowrap">
+                    {(labels[i] ?? `Study ${i + 1}`).slice(0, 22)}
+                  </td>
+                  <td className="px-2 py-1 text-right">{fmt(disp(s.yi), 3)}</td>
+                  <td className="px-2 py-1 text-right text-neutral-500 dark:text-slate-400">
+                    [{fmt(disp(s.ci_low), 3)}, {fmt(disp(s.ci_high), 3)}]
+                  </td>
+                  <td className="px-2 py-1 text-right">{fmt(s.w_random, 1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ColumnSelect({
   label,
   value,
@@ -336,6 +638,16 @@ export default function StatsPage() {
   // Return `sel` if it's a valid candidate, else the first candidate (or -1).
   const resolve = (sel: number, candidates: number[]): number =>
     candidates.includes(sel) ? sel : candidates[0] ?? -1;
+
+  // --- Meta-analysis inputs ---
+  const [metaText, setMetaText] = useState('');
+  const [metaStudyCol, setMetaStudyCol] = useState(0);
+  const [metaEffectCol, setMetaEffectCol] = useState(1);
+  const [metaSeCol, setMetaSeCol] = useState(2);
+  const [metaLog, setMetaLog] = useState(false);
+  // Study labels + log flag stashed for the result renderer (labels aren't
+  // carried through the Python interchange).
+  const [metaMeta, setMetaMeta] = useState<{ labels: string[]; log: boolean } | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
@@ -507,6 +819,55 @@ export default function StatsPage() {
           }
           break;
         }
+        case 'meta': {
+          const labels: string[] = [];
+          const yi: number[] = [];
+          const sei: number[] = [];
+          if (useData) {
+            const sCol = resolve(metaStudyCol, allCols);
+            const eCol = resolve(metaEffectCol, numericCols);
+            const seCol = resolve(metaSeCol, numericCols);
+            if (eCol < 0 || seCol < 0)
+              throw new Error('Pick an effect column and a standard-error column.');
+            if (eCol === seCol)
+              throw new Error('Effect and standard error must be different columns.');
+            dataset.rows.forEach((row) => {
+              const eff = Number(row[eCol]);
+              const se = Number(row[seCol]);
+              if (Number.isFinite(eff) && Number.isFinite(se) && se > 0) {
+                yi.push(eff);
+                sei.push(se);
+                labels.push(
+                  (sCol >= 0 ? (row[sCol] ?? '').trim() : '') || `Study ${yi.length}`
+                );
+              }
+            });
+          } else {
+            metaText
+              .split(/\r?\n/)
+              .map((l) => l.trim())
+              .filter(Boolean)
+              .forEach((line) => {
+                const parts = line.split(/[,;\t]/).map((s) => s.trim()).filter(Boolean);
+                if (parts.length < 2) return;
+                const se = Number(parts[parts.length - 1]);
+                const eff = Number(parts[parts.length - 2]);
+                if (!Number.isFinite(eff) || !Number.isFinite(se) || se <= 0) return;
+                yi.push(eff);
+                sei.push(se);
+                labels.push(
+                  parts.slice(0, parts.length - 2).join(' ') || `Study ${yi.length}`
+                );
+              });
+          }
+          if (yi.length < 2)
+            throw new Error(
+              'Meta-analysis needs at least 2 studies with a positive standard error.'
+            );
+          payload = { yi, sei };
+          setMetaMeta({ labels, log: metaLog });
+          break;
+        }
       }
       const r = await runStats(mode, payload, setProgress);
       if (r.error) throw new Error(String(r.error));
@@ -544,6 +905,20 @@ export default function StatsPage() {
     regression: () => {
       setXText('1, 2, 3, 4, 5, 6, 7, 8, 9, 10');
       setYText('2.1, 4.0, 6.2, 7.9, 10.1, 11.8, 14.2, 16.1, 17.9, 20.3');
+    },
+    meta: () => {
+      // Six trials as log odds ratios (negative = protective) with SEs.
+      setMetaText(
+        [
+          'Trial A, -0.35, 0.18',
+          'Trial B, -0.52, 0.25',
+          'Trial C, -0.10, 0.15',
+          'Trial D, -0.68, 0.30',
+          'Trial E, -0.22, 0.12',
+          'Trial F, -0.45, 0.20',
+        ].join('\n')
+      );
+      setMetaLog(true);
     },
   };
 
@@ -1063,6 +1438,59 @@ export default function StatsPage() {
                 </div>
               ))}
 
+            {mode === 'meta' && (
+              <div className="space-y-4">
+                {inputSource === 'dataset' && hasData ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <ColumnSelect
+                      label="Study label"
+                      value={resolve(metaStudyCol, allCols)}
+                      onChange={setMetaStudyCol}
+                      options={allCols}
+                      dataset={dataset}
+                    />
+                    <ColumnSelect
+                      label="Effect size (numeric)"
+                      value={resolve(metaEffectCol, numericCols)}
+                      onChange={setMetaEffectCol}
+                      options={numericCols}
+                      dataset={dataset}
+                      accent="text-cyan-600 dark:text-cyan-300"
+                    />
+                    <ColumnSelect
+                      label="Standard error (numeric)"
+                      value={resolve(metaSeCol, numericCols)}
+                      onChange={setMetaSeCol}
+                      options={numericCols}
+                      dataset={dataset}
+                      accent="text-violet-600 dark:text-violet-300"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+                      One study per line: label, effect, standard error
+                    </label>
+                    <textarea
+                      value={metaText}
+                      onChange={(e) => setMetaText(e.target.value)}
+                      placeholder={'Trial A, -0.35, 0.18\nTrial B, -0.52, 0.25'}
+                      className="clay-field w-full h-32 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"
+                    />
+                  </div>
+                )}
+                <label className="inline-flex items-center gap-2 text-[12px] font-bold text-neutral-600 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={metaLog}
+                    onChange={(e) => setMetaLog(e.target.checked)}
+                    className="accent-[#00A598]"
+                  />
+                  Effects are on a log scale (OR / RR / HR) — show as ratios
+                </label>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 onClick={handleRun}
@@ -1347,6 +1775,10 @@ export default function StatsPage() {
                   </div>
                   <AssumptionPanel flags={result.assumption_flags} />
                 </div>
+              )}
+
+              {mode === 'meta' && !!result.k && (
+                <MetaResult result={result} meta={metaMeta} />
               )}
 
               {/* AI Interpretation */}

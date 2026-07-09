@@ -68,7 +68,8 @@ export type StatMode =
   | 'anova'
   | 'chi2'
   | 'correlation'
-  | 'regression';
+  | 'regression'
+  | 'meta';
 
 export type StatPayload = Record<string, unknown>;
 
@@ -457,6 +458,109 @@ try:
             'residual_standard_error': residual_se,
             'residual_normality': residual_normality,
             'assumption_flags': flags,
+        }
+
+    elif mode == 'meta':
+        yi = np.asarray(data['yi'], dtype=float)
+        sei = np.asarray(data['sei'], dtype=float)
+        if yi.size != sei.size:
+            raise ValueError('Each study needs one effect and one standard error.')
+        mask = np.isfinite(yi) & np.isfinite(sei) & (sei > 0)
+        idx = [int(i) for i in np.where(mask)[0]]
+        yi = yi[mask]; sei = sei[mask]
+        k = int(yi.size)
+        if k < 2:
+            raise ValueError('Meta-analysis needs at least 2 studies with a positive standard error.')
+        z = 1.959963984540054
+        vi = sei ** 2
+        wi = 1.0 / vi
+        sw = float(wi.sum())
+        theta_fe = float((wi * yi).sum() / sw)
+        se_fe = float(np.sqrt(1.0 / sw))
+
+        # Heterogeneity
+        Q = float((wi * (yi - theta_fe) ** 2).sum())
+        df = k - 1
+        Q_p = float(st.chi2.sf(Q, df)) if df > 0 else None
+        I2 = float(max(0.0, (Q - df) / Q) * 100.0) if Q > 0 else 0.0
+        C = sw - float((wi ** 2).sum()) / sw
+        tau2 = float(max(0.0, (Q - df) / C)) if C > 0 else 0.0
+
+        # Random effects (DerSimonian-Laird)
+        wr = 1.0 / (vi + tau2)
+        swr = float(wr.sum())
+        theta_re = float((wr * yi).sum() / swr)
+        se_re = float(np.sqrt(1.0 / swr))
+
+        def pooled(theta, se):
+            zval = theta / se if se > 0 else float('nan')
+            return {
+                'estimate': float(theta),
+                'se': float(se),
+                'ci_low': float(theta - z * se),
+                'ci_high': float(theta + z * se),
+                'z': float(zval),
+                'p': float(2 * st.norm.sf(abs(zval))) if np.isfinite(zval) else None,
+            }
+
+        studies = []
+        for j in range(k):
+            studies.append({
+                'index': idx[j],
+                'yi': float(yi[j]),
+                'sei': float(sei[j]),
+                'ci_low': float(yi[j] - z * sei[j]),
+                'ci_high': float(yi[j] + z * sei[j]),
+                'w_fixed': float(wi[j] / sw * 100.0),
+                'w_random': float(wr[j] / swr * 100.0),
+            })
+
+        # Egger's regression test for funnel asymmetry (needs >= 3 studies with
+        # varying standard errors — linregress is undefined for constant x).
+        # np.ptp is exact for identical values (unlike np.std, which can be ~1e-17).
+        if k < 3:
+            egger = {'intercept': None, 'se': None, 'p': None,
+                     'note': 'Egger test needs at least 3 studies.'}
+        elif float(np.ptp(sei)) == 0:
+            egger = {'intercept': None, 'se': None, 'p': None,
+                     'note': 'Egger test needs studies with differing standard errors.'}
+        else:
+            snd = yi / sei          # standard normal deviate
+            prec = 1.0 / sei        # precision
+            try:
+                lr = st.linregress(prec, snd)
+                icept = float(lr.intercept)
+                ise = float(getattr(lr, 'intercept_stderr', float('nan')))
+                if np.isfinite(ise) and ise > 0:
+                    t_e = icept / ise
+                    p_e = float(2 * st.t.sf(abs(t_e), k - 2))
+                else:
+                    p_e = None
+            except Exception:
+                icept = float('nan')
+                ise = float('nan')
+                p_e = None
+            egger = {
+                'intercept': icept if np.isfinite(icept) else None,
+                'se': ise if np.isfinite(ise) else None,
+                'p': p_e,
+                'note': (
+                    'Small-study effects / funnel asymmetry are suggested.'
+                    if (p_e is not None and p_e < 0.05)
+                    else 'No strong evidence of funnel asymmetry.'
+                ),
+            }
+
+        result = {
+            'test': 'Meta-analysis (inverse-variance)',
+            'k': k,
+            'fixed': pooled(theta_fe, se_fe),
+            'random': pooled(theta_re, se_re),
+            'heterogeneity': {
+                'Q': Q, 'df': df, 'p': Q_p, 'I2': I2, 'tau2': tau2,
+            },
+            'egger': egger,
+            'studies': studies,
         }
 
     else:

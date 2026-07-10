@@ -18,6 +18,7 @@ export type SearchResult = {
   type?: string; // work type (journal-article, review, preprint, …)
   isOA?: boolean; // open access
   citedBy?: number; // citation count (OpenAlex)
+  relevance?: number; // 0–100 relevance to the query (computed client-side)
 };
 
 // A source fetch returns the page of results plus the total available upstream,
@@ -33,6 +34,9 @@ export type FetchOptions = {
   page?: number; // 1-based
   pageSize?: number;
   synonym?: boolean; // Europe PMC MeSH/term expansion (recall)
+  fromYear?: number; // only include works published on/after this year
+  excludeReviews?: boolean; // drop review / editorial article types
+  openAccessOnly?: boolean; // only open-access works
   signal?: AbortSignal;
 };
 
@@ -123,9 +127,24 @@ export async function searchEuropePMC(
   query: string,
   opts: FetchOptions = {}
 ): Promise<SourcePage> {
-  const { page = 1, pageSize = 25, synonym = false, signal } = opts;
+  const {
+    page = 1,
+    pageSize = 25,
+    synonym = false,
+    fromYear,
+    excludeReviews,
+    openAccessOnly,
+    signal,
+  } = opts;
+  // Fold source-side filters into the query string (Europe PMC field syntax).
+  let q = query;
+  if (fromYear && fromYear > 1500)
+    q += ` AND (PUB_YEAR:[${fromYear} TO 3000])`;
+  if (openAccessOnly) q += ' AND (OPEN_ACCESS:y)';
+  if (excludeReviews)
+    q += ' NOT (PUB_TYPE:"Review" OR PUB_TYPE:"review-article" OR PUB_TYPE:"Editorial")';
   const url = new URL('https://www.ebi.ac.uk/europepmc/webservices/rest/search');
-  url.searchParams.set('query', query);
+  url.searchParams.set('query', q);
   url.searchParams.set('format', 'json');
   url.searchParams.set('resultType', 'core');
   url.searchParams.set('pageSize', String(pageSize));
@@ -187,12 +206,26 @@ export async function searchOpenAlex(
   query: string,
   opts: FetchOptions = {}
 ): Promise<SourcePage> {
-  const { page = 1, pageSize = 25, signal } = opts;
+  const {
+    page = 1,
+    pageSize = 25,
+    fromYear,
+    excludeReviews,
+    openAccessOnly,
+    signal,
+  } = opts;
   const url = new URL('https://api.openalex.org/works');
   url.searchParams.set('search', query);
   url.searchParams.set('per-page', String(Math.min(pageSize, 50)));
   url.searchParams.set('page', String(page));
   url.searchParams.set('select', OPENALEX_SELECT);
+  // Source-side filters via OpenAlex's structured `filter` param.
+  const filters: string[] = [];
+  if (fromYear && fromYear > 1500)
+    filters.push(`from_publication_date:${fromYear}-01-01`);
+  if (openAccessOnly) filters.push('is_oa:true');
+  if (excludeReviews) filters.push('type:!review');
+  if (filters.length) url.searchParams.set('filter', filters.join(','));
   // Be a good citizen — OpenAlex asks for a mailto for the polite pool.
   url.searchParams.set('mailto', 'vestrippn@research.local');
   const data = (await safeJson(await robustFetch(url.toString(), signal))) as OpenAlexResponse;
@@ -289,15 +322,73 @@ export function dedupe(lists: SearchResult[][]): SearchResult[] {
 // Build a query string from inclusion keywords.
 //   'all'  → concepts joined with AND  (precise / higher specificity)
 //   'any'  → concepts joined with OR   (broad / higher recall)
+// `negative` terms, when supplied, are appended as a NOT (…) clause so obvious
+// noise is filtered at the source.
 export function buildQueryFromKeywords(
   positive: string[],
-  matchMode: MatchMode = 'all'
+  matchMode: MatchMode = 'all',
+  negative: string[] = []
 ): string {
+  const quote = (w: string) => (/\s/.test(w) ? `"${w}"` : w);
   const terms = positive
     .map((w) => w.trim())
     .filter(Boolean)
-    .map((w) => (/\s/.test(w) ? `"${w}"` : w))
+    .map(quote)
     .slice(0, 12);
   if (terms.length === 0) return '';
-  return terms.join(matchMode === 'any' ? ' OR ' : ' AND ');
+  let q = terms.join(matchMode === 'any' ? ' OR ' : ' AND ');
+  const neg = negative.map((w) => w.trim()).filter(Boolean).map(quote).slice(0, 8);
+  if (neg.length) q += ` NOT (${neg.join(' OR ')})`;
+  return q;
+}
+
+// --- Relevance engine -----------------------------------------------------
+// Extract the concept terms from a query string (quoted phrases + bare words),
+// stripping boolean operators, field prefixes, and punctuation.
+export function queryTerms(query: string): string[] {
+  const phrases = [...query.matchAll(/"([^"]+)"/g)].map((m) =>
+    m[1].toLowerCase().trim()
+  );
+  const rest = query
+    .replace(/"[^"]+"/g, ' ')
+    .replace(/\b(AND|OR|NOT)\b/gi, ' ')
+    .replace(/[A-Z_]+:/g, ' ') // field prefixes like PUB_YEAR:
+    .replace(/[()[\]]/g, ' ');
+  const words = rest
+    .split(/\s+/)
+    .map((s) => s.toLowerCase().trim())
+    .filter((s) => s.length > 2 && !/^\d+$/.test(s));
+  return Array.from(new Set([...phrases, ...words])).slice(0, 20);
+}
+
+// Score a result 0–100 for how well it matches the query: term coverage over
+// title + abstract (title weighted), plus mild recency and citation boosts.
+// This re-ranks the two sources by intent, which neither API does across both.
+export function relevanceScore(
+  r: Pick<SearchResult, 'title' | 'abstract' | 'year' | 'citedBy'>,
+  terms: string[],
+  currentYear = 2026
+): number {
+  if (terms.length === 0) return 0;
+  const title = (r.title || '').toLowerCase();
+  const abs = (r.abstract || '').toLowerCase();
+  let covered = 0;
+  let titleHits = 0;
+  for (const t of terms) {
+    const inTitle = title.includes(t);
+    const inAbs = abs.includes(t);
+    if (inTitle || inAbs) covered += 1;
+    if (inTitle) titleHits += 1;
+  }
+  const coverage = covered / terms.length; // 0..1
+  const titleBoost = titleHits / terms.length; // 0..1
+  const y = Number(r.year) || 0;
+  const recency = y
+    ? Math.max(0, Math.min(1, (y - (currentYear - 15)) / 15))
+    : 0.3;
+  const cites = r.citedBy || 0;
+  const citeBoost = Math.min(1, Math.log10(cites + 1) / 3); // ~1000 cites → 1
+  const score =
+    0.55 * coverage + 0.2 * titleBoost + 0.15 * recency + 0.1 * citeBoost;
+  return Math.round(score * 100);
 }

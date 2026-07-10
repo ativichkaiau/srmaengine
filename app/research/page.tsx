@@ -15,6 +15,8 @@ import {
 import {
   buildQueryFromKeywords,
   dedupe,
+  queryTerms,
+  relevanceScore,
   searchEuropePMC,
   searchOpenAlex,
   type MatchMode,
@@ -130,6 +132,11 @@ export default function ResearchPage() {
   );
   const [pageSize, setPageSize] = useState(25);
   const [matchMode, setMatchMode] = useState<MatchMode>('all');
+  // Smarter-search controls.
+  const [sortMode, setSortMode] = useState<'relevance' | 'screening'>('relevance');
+  const [fromYear, setFromYear] = useState('');
+  const [excludeReviews, setExcludeReviews] = useState(false);
+  const [oaOnly, setOaOnly] = useState(false);
   const [enabled, setEnabled] = useState<Record<Source, boolean>>({
     europepmc: true,
     openalex: true,
@@ -204,25 +211,21 @@ export default function ResearchPage() {
   const noCriteria =
     protocol.positive.length === 0 && protocol.negative.length === 0;
 
-  // Dedupe accumulated raw results, classify against the protocol, and sort by
-  // verdict then score. Runs after every page fetch.
+  // Dedupe accumulated raw results, score relevance, and classify against the
+  // protocol. The sort order is applied downstream via useMemo. Runs after
+  // every page fetch.
   const rebuildHits = (raw: Record<Source, SearchResult[]>) => {
     const merged = dedupe([raw.europepmc, raw.openalex]);
+    const terms = queryTerms(query);
     const classified: Hit[] = merged.map((r) => ({
       ...r,
+      relevance: relevanceScore(r, terms),
       classification: classifyAbstract(
         `${r.title}\n${r.abstract}`,
         protocol.positive,
         protocol.negative
       ),
     }));
-    classified.sort((a, b) => {
-      const v =
-        VERDICT_ORDER[a.classification.verdict] -
-        VERDICT_ORDER[b.classification.verdict];
-      if (v !== 0) return v;
-      return b.classification.score - a.classification.score;
-    });
     setHits(classified);
   };
 
@@ -266,6 +269,13 @@ export default function ResearchPage() {
           error: err instanceof Error ? err.message : String(err),
         }));
 
+    const yr = parseInt(fromYear, 10);
+    const filters = {
+      fromYear: Number.isFinite(yr) && yr > 1500 ? yr : undefined,
+      excludeReviews,
+      openAccessOnly: oaOnly,
+    };
+
     const calls: Array<
       Promise<{ source: Source; page: SourcePage | null; error?: string }>
     > = [];
@@ -276,6 +286,7 @@ export default function ResearchPage() {
             page: pageToFetch,
             pageSize,
             synonym: matchMode === 'any',
+            ...filters,
           })
         )
       );
@@ -283,7 +294,7 @@ export default function ResearchPage() {
     if (enabled.openalex) {
       calls.push(
         fetchOne('openalex', () =>
-          searchOpenAlex(q, { page: pageToFetch, pageSize })
+          searchOpenAlex(q, { page: pageToFetch, pageSize, ...filters })
         )
       );
     }
@@ -327,10 +338,31 @@ export default function ResearchPage() {
     (enabled.europepmc && status.europepmc.count < status.europepmc.total) ||
     (enabled.openalex && status.openalex.count < status.openalex.total);
 
+  // Sort by the selected mode, then apply the verdict filter.
+  const sortedHits = useMemo(() => {
+    const next = [...hits];
+    next.sort((a, b) => {
+      if (sortMode === 'relevance') {
+        const rel = (b.relevance ?? 0) - (a.relevance ?? 0);
+        if (rel !== 0) return rel;
+        return (
+          VERDICT_ORDER[a.classification.verdict] -
+          VERDICT_ORDER[b.classification.verdict]
+        );
+      }
+      const v =
+        VERDICT_ORDER[a.classification.verdict] -
+        VERDICT_ORDER[b.classification.verdict];
+      if (v !== 0) return v;
+      return b.classification.score - a.classification.score;
+    });
+    return next;
+  }, [hits, sortMode]);
+
   const filtered = useMemo(() => {
-    if (filter === 'ALL') return hits;
-    return hits.filter((h) => h.classification.verdict === filter);
-  }, [hits, filter]);
+    if (filter === 'ALL') return sortedHits;
+    return sortedHits.filter((h) => h.classification.verdict === filter);
+  }, [sortedHits, filter]);
 
   const counts = useMemo(() => {
     const c: Record<Verdict | 'ALL', number> = {
@@ -478,7 +510,16 @@ export default function ResearchPage() {
                 Search Query
               </h2>
               <button
-                onClick={() => setQuery(buildQueryFromKeywords(protocol.positive, matchMode))}
+                onClick={() =>
+                  setQuery(
+                    buildQueryFromKeywords(
+                      protocol.positive,
+                      matchMode,
+                      protocol.negative
+                    )
+                  )
+                }
+                title="Build a query from your inclusion terms (with exclusion terms as NOT)"
                 className="clay-button rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400"
               >
                 Load from Protocol
@@ -558,6 +599,66 @@ export default function ResearchPage() {
               </button>
             </div>
 
+            {/* Smarter-search: sort + source-side filters */}
+            <div className="flex flex-wrap items-center gap-4 border-t border-black/5 dark:border-white/10 pt-4">
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Sort</label>
+                {(
+                  [
+                    ['relevance', 'Relevance'],
+                    ['screening', 'Screening'],
+                  ] as ['relevance' | 'screening', string][]
+                ).map(([m, lbl]) => (
+                  <button
+                    key={m}
+                    onClick={() => setSortMode(m)}
+                    title={
+                      m === 'relevance'
+                        ? 'Rank by how well each result matches your query'
+                        : 'Group by include / maybe / exclude screening verdict'
+                    }
+                    className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                      sortMode === m ? 'clay-tab-active' : 'clay-button text-neutral-400 dark:text-slate-500'
+                    }`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Since</label>
+                <input
+                  type="number"
+                  min={1900}
+                  max={2100}
+                  value={fromYear}
+                  onChange={(e) => setFromYear(e.target.value)}
+                  placeholder="year"
+                  className="clay-field w-20 px-2 py-1.5 text-[12px] font-bold rounded-lg text-center focus:outline-none"
+                />
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-[11px] font-bold text-neutral-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={excludeReviews}
+                  onChange={(e) => setExcludeReviews(e.target.checked)}
+                  className="accent-[#00A598]"
+                />
+                Exclude reviews
+              </label>
+              <label className="inline-flex items-center gap-2 text-[11px] font-bold text-neutral-600 dark:text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={oaOnly}
+                  onChange={(e) => setOaOnly(e.target.checked)}
+                  className="accent-[#00A598]"
+                />
+                Open access only
+              </label>
+            </div>
+
             {/* Per-source status */}
             <div className="flex flex-wrap gap-2 text-[11px] font-mono">
               {(Object.keys(SOURCE_META) as Source[]).map((src) => {
@@ -628,6 +729,20 @@ export default function ResearchPage() {
                         className="clay-soft p-5 rounded-2xl flex flex-col gap-3"
                       >
                         <div className="flex flex-wrap items-center gap-2">
+                          {typeof h.relevance === 'number' && (
+                            <span
+                              className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded border border-cyan-300 dark:border-cyan-500/40 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-500/10"
+                              title="Relevance to your query (0–100): term coverage in title & abstract, with recency and citation weighting"
+                            >
+                              <span className="w-8 h-1.5 rounded-full bg-cyan-200 dark:bg-cyan-500/20 overflow-hidden inline-block">
+                                <span
+                                  className="block h-full bg-cyan-500 dark:bg-cyan-300"
+                                  style={{ width: `${h.relevance}%` }}
+                                />
+                              </span>
+                              {h.relevance}
+                            </span>
+                          )}
                           <span
                             className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded border ${VERDICT_TONE[v]}`}
                           >

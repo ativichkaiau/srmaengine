@@ -23,10 +23,12 @@ import {
   type SourcePage,
 } from '@/lib/search';
 import {
-  addRecord,
   loadLibrary,
+  loadReviewer,
   recordKey,
+  upsertDecision,
   type Decision,
+  type Reviewer,
 } from '@/lib/library';
 
 type Hit = SearchResult & { classification: Classification };
@@ -150,12 +152,18 @@ export default function ResearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Screening decisions already in the library (keyed like the library).
+  // Active reviewer + this reviewer's decisions already in the library.
+  const [reviewer, setReviewer] = useState<Reviewer>(1);
   const [libDecisions, setLibDecisions] = useState<Record<string, Decision>>({});
   useEffect(() => {
     const sync = () => {
+      const rev = loadReviewer();
+      setReviewer(rev);
       const map: Record<string, Decision> = {};
-      for (const r of loadLibrary().records) map[recordKey(r)] = r.decision;
+      for (const r of loadLibrary().records) {
+        const d = rev === 2 ? r.decision2 : r.decision;
+        if (d) map[recordKey(r)] = d;
+      }
       setLibDecisions(map);
     };
     sync();
@@ -168,7 +176,7 @@ export default function ResearchPage() {
   }, []);
 
   const triage = (h: Hit, decision: Decision) => {
-    addRecord(
+    upsertDecision(
       {
         id: recordKey(h),
         title: h.title,
@@ -178,8 +186,9 @@ export default function ResearchPage() {
         pmid: h.pmid,
         url: h.url,
         source: SOURCE_META[h.source]?.label ?? h.source,
-        decision,
-      }
+      },
+      reviewer,
+      decision
     );
   };
 

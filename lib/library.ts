@@ -4,6 +4,8 @@
 
 export type Decision = 'include' | 'exclude' | 'maybe' | 'unscreened';
 
+export type Reviewer = 1 | 2;
+
 export type LibraryRecord = {
   id: string; // stable key (doi/pmid/normalized-title)
   title: string;
@@ -13,10 +15,29 @@ export type LibraryRecord = {
   pmid?: string;
   url?: string;
   source?: string; // e.g. "Europe PMC", "OpenAlex", "Scanner"
-  decision: Decision;
+  decision: Decision; // reviewer 1 (primary)
+  decision2?: Decision; // reviewer 2 (dual screening)
   reason?: string;
   addedAt: number;
 };
+
+export type RecordBase = Omit<
+  LibraryRecord,
+  'decision' | 'decision2' | 'reason' | 'addedAt'
+>;
+
+const REVIEWER_KEY = 'srma-reviewer';
+
+export function loadReviewer(): Reviewer {
+  if (typeof window === 'undefined') return 1;
+  return window.localStorage.getItem(REVIEWER_KEY) === '2' ? 2 : 1;
+}
+
+export function saveReviewer(r: Reviewer): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(REVIEWER_KEY, String(r));
+  window.dispatchEvent(new Event('srma-library-changed'));
+}
 
 export type Library = {
   records: LibraryRecord[];
@@ -70,32 +91,64 @@ export function saveLibrary(lib: Library): void {
   }
 }
 
-// Add or update a record with a decision. Counts every attempt toward
-// `identified` (so re-adding the same paper registers as a duplicate).
-export function addRecord(
-  rec: Omit<LibraryRecord, 'addedAt'>,
+// Record a decision from a given reviewer, creating the record if new.
+// `identified` only increments for genuinely new records (per-record, not
+// per-click) so PRISMA "duplicates removed" reflects import overlap, not edits.
+export function upsertDecision(
+  base: RecordBase,
+  reviewer: Reviewer,
+  decision: Decision,
   now: number = Date.now()
 ): Library {
   const lib = loadLibrary();
-  const key = recordKey(rec);
-  lib.identified += 1;
-  const existing = lib.records.findIndex((r) => recordKey(r) === key);
-  if (existing >= 0) {
-    lib.records[existing] = {
-      ...lib.records[existing],
-      ...rec,
-      addedAt: lib.records[existing].addedAt,
-    };
+  const key = recordKey(base);
+  const i = lib.records.findIndex((r) => recordKey(r) === key);
+  if (i >= 0) {
+    const rec = { ...lib.records[i], ...base };
+    if (reviewer === 2) rec.decision2 = decision;
+    else rec.decision = decision;
+    lib.records[i] = rec;
   } else {
-    lib.records.push({ ...rec, addedAt: now });
+    lib.identified += 1;
+    lib.records.push({
+      ...base,
+      id: key,
+      decision: reviewer === 2 ? 'unscreened' : decision,
+      decision2: reviewer === 2 ? decision : undefined,
+      addedAt: now,
+    });
   }
   saveLibrary(lib);
   return lib;
 }
 
+// Bulk import (RIS / PubMed): every parsed reference counts toward `identified`;
+// unique ones are added as unscreened. Returns { lib, added, duplicates }.
+export function importRecords(
+  bases: RecordBase[],
+  now: number = Date.now()
+): { lib: Library; added: number; duplicates: number } {
+  const lib = loadLibrary();
+  let added = 0;
+  let duplicates = 0;
+  for (const base of bases) {
+    const key = recordKey(base);
+    if (!key) continue;
+    lib.identified += 1;
+    if (lib.records.some((r) => recordKey(r) === key)) {
+      duplicates += 1;
+      continue;
+    }
+    lib.records.push({ ...base, id: key, decision: 'unscreened', addedAt: now });
+    added += 1;
+  }
+  saveLibrary(lib);
+  return { lib, added, duplicates };
+}
+
 export function updateRecord(
   id: string,
-  patch: Partial<Pick<LibraryRecord, 'decision' | 'reason'>>
+  patch: Partial<Pick<LibraryRecord, 'decision' | 'decision2' | 'reason'>>
 ): Library {
   const lib = loadLibrary();
   const i = lib.records.findIndex((r) => r.id === id);
@@ -104,6 +157,53 @@ export function updateRecord(
     saveLibrary(lib);
   }
   return lib;
+}
+
+// Set the decision for a specific reviewer on an existing record.
+export function setDecisionFor(
+  id: string,
+  reviewer: Reviewer,
+  decision: Decision
+): Library {
+  return updateRecord(
+    id,
+    reviewer === 2 ? { decision2: decision } : { decision }
+  );
+}
+
+// Cohen's κ between the two reviewers over records both have screened
+// (decisions other than "unscreened").
+export type KappaResult = {
+  n: number;
+  agreement: number | null;
+  kappa: number | null;
+  conflicts: number;
+};
+
+export function cohensKappa(lib: Library): KappaResult {
+  const cats: Decision[] = ['include', 'maybe', 'exclude'];
+  const both = lib.records.filter(
+    (r) =>
+      r.decision &&
+      r.decision !== 'unscreened' &&
+      r.decision2 &&
+      r.decision2 !== 'unscreened'
+  );
+  const n = both.length;
+  if (n === 0) return { n: 0, agreement: null, kappa: null, conflicts: 0 };
+  let agree = 0;
+  const c1: Record<string, number> = { include: 0, maybe: 0, exclude: 0 };
+  const c2: Record<string, number> = { include: 0, maybe: 0, exclude: 0 };
+  for (const r of both) {
+    if (r.decision === r.decision2) agree += 1;
+    c1[r.decision] += 1;
+    c2[r.decision2 as Decision] += 1;
+  }
+  const po = agree / n;
+  let pe = 0;
+  for (const c of cats) pe += (c1[c] / n) * (c2[c] / n);
+  const kappa = pe === 1 ? 1 : (po - pe) / (1 - pe);
+  return { n, agreement: po, kappa, conflicts: n - agree };
 }
 
 export function removeRecord(id: string): Library {
@@ -147,6 +247,7 @@ export function prismaCounts(lib: Library): PrismaCounts {
 export function toCSV(lib: Library): string {
   const cols: (keyof LibraryRecord)[] = [
     'decision',
+    'decision2',
     'reason',
     'title',
     'authors',

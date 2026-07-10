@@ -4,6 +4,12 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import ThemeToggle from '../components/ThemeToggle';
 import MobileTabBar from '../components/MobileTabBar';
+import {
+  loadReviewer,
+  recordKey,
+  upsertDecision,
+  type Decision,
+} from '../lib/library';
 
 type SmartMatch = {
   word: string;
@@ -164,6 +170,7 @@ export default function SRMATelemetryPage() {
   const [inputText, setInputText] = useState('');
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [isScanned, setIsScanned] = useState(false);
+  const [libSaved, setLibSaved] = useState(false);
 
   // Drill-down disclosure tiers.
   const [showSentences, setShowSentences] = useState(false);
@@ -433,11 +440,34 @@ export default function SRMATelemetryPage() {
     setShowSentences(false);
     setShowWords(false);
     setIsScanned(true);
+    setLibSaved(false);
   };
 
   const handleClear = () => {
     setInputText('');
     resetResults();
+    setLibSaved(false);
+  };
+
+  // Send the current abstract + verdict to the screening library.
+  const saveScanToLibrary = () => {
+    if (!scan || scan.decision === 'NO_CRITERIA') return;
+    const verdictToDecision: Record<string, Decision> = {
+      'INCLUDE / MAYBE': 'include',
+      UNCLEAR: 'maybe',
+      EXCLUDE: 'exclude',
+    };
+    const decision = verdictToDecision[scan.decision] ?? 'maybe';
+    // Derive a title from the first sentence / first ~100 chars of the abstract.
+    const firstSentence =
+      inputText.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s/)[0] ?? '';
+    const title = firstSentence.slice(0, 120) || 'Pasted abstract';
+    upsertDecision(
+      { id: recordKey({ title }), title, source: 'Scanner' },
+      loadReviewer(),
+      decision
+    );
+    setLibSaved(true);
   };
 
   const getHighlightedText = (text: string) => {
@@ -1195,6 +1225,15 @@ export default function SRMATelemetryPage() {
                     <span className="text-[11px] font-mono text-yellow-600 dark:text-yellow-300/70 mt-3 block tracking-normal uppercase bg-yellow-100 dark:bg-black/20 px-3 py-1 rounded text-center">
                       Exclusion term ignored because it appeared in a negated sentence.
                     </span>
+                  )}
+                  {decision !== 'NO_CRITERIA' && (
+                    <button
+                      onClick={saveScanToLibrary}
+                      disabled={libSaved}
+                      className="clay-button mt-4 rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-600 dark:text-slate-300 disabled:opacity-60"
+                    >
+                      {libSaved ? '✓ Saved to library' : '+ Save decision to library'}
+                    </button>
                   )}
                 </div>
 

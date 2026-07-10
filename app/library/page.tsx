@@ -6,14 +6,21 @@ import ThemeToggle from '@/components/ThemeToggle';
 import MobileTabBar from '@/components/MobileTabBar';
 import {
   clearLibrary,
+  cohensKappa,
+  importRecords,
   loadLibrary,
+  loadReviewer,
   prismaCounts,
   removeRecord,
+  saveReviewer,
+  setDecisionFor,
   toCSV,
   updateRecord,
   type Decision,
   type Library,
+  type Reviewer,
 } from '@/lib/library';
+import { parseReferences } from '@/lib/refs';
 
 const DECISION_META: Record<Decision, { label: string; tone: string }> = {
   include: {
@@ -116,10 +123,16 @@ function PrismaDiagram({ c }: { c: ReturnType<typeof prismaCounts> }) {
 
 export default function LibraryPage() {
   const [lib, setLib] = useState<Library>({ records: [], identified: 0 });
-  const [filter, setFilter] = useState<Decision | 'all'>('all');
+  const [filter, setFilter] = useState<Decision | 'all' | 'conflict'>('all');
+  const [reviewer, setReviewer] = useState<Reviewer>(1);
+  const [importText, setImportText] = useState('');
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const sync = () => setLib(loadLibrary());
+    const sync = () => {
+      setLib(loadLibrary());
+      setReviewer(loadReviewer());
+    };
     sync();
     window.addEventListener('srma-library-changed', sync);
     window.addEventListener('storage', sync);
@@ -130,18 +143,49 @@ export default function LibraryPage() {
   }, []);
 
   const counts = useMemo(() => prismaCounts(lib), [lib]);
+  const kappa = useMemo(() => cohensKappa(lib), [lib]);
+  const dual = kappa.n > 0 || lib.records.some((r) => r.decision2);
+  const isConflict = (r: (typeof lib.records)[number]) =>
+    !!r.decision2 &&
+    r.decision2 !== 'unscreened' &&
+    r.decision !== 'unscreened' &&
+    r.decision !== r.decision2;
   const filtered = useMemo(
     () =>
       filter === 'all'
         ? lib.records
+        : filter === 'conflict'
+        ? lib.records.filter(isConflict)
         : lib.records.filter((r) => r.decision === filter),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [lib, filter]
   );
 
   const setDecision = (id: string, decision: Decision) =>
-    setLib(updateRecord(id, { decision }));
+    setLib(setDecisionFor(id, reviewer, decision));
   const setReason = (id: string, reason: string) =>
     setLib(updateRecord(id, { reason }));
+
+  const runImport = (text: string) => {
+    const refs = parseReferences(text);
+    if (refs.length === 0) {
+      setImportMsg('No references found. Paste RIS or PubMed (.nbib) text.');
+      return;
+    }
+    const { added, duplicates } = importRecords(refs);
+    setImportMsg(
+      `Imported ${added} record${added === 1 ? '' : 's'}` +
+        (duplicates ? ` · ${duplicates} duplicate${duplicates === 1 ? '' : 's'} skipped` : '') +
+        '.'
+    );
+    setImportText('');
+  };
+
+  const onFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => runImport(String(reader.result ?? ''));
+    reader.readAsText(file);
+  };
 
   const exportCSV = () => {
     const blob = new Blob([toCSV(lib)], { type: 'text/csv;charset=utf-8;' });
@@ -188,9 +232,92 @@ export default function LibraryPage() {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-300 dark:via-indigo-300 dark:to-violet-300">Library</span>
             </h1>
             <p className="max-w-2xl font-mono text-[10px] sm:text-[11px] text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.3em]">
-              Decisions · PRISMA flow · export
+              Import · dual review · PRISMA · export
             </p>
           </section>
+
+          {/* Import + reviewer */}
+          <div className="clay p-5 rounded-2xl space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-bold text-[15px] tracking-tight flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span>
+                Import references
+              </h2>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Screening as</label>
+                {([1, 2] as Reviewer[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => {
+                      saveReviewer(r);
+                      setReviewer(r);
+                    }}
+                    className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                      reviewer === r ? 'clay-tab-active' : 'clay-button text-neutral-400 dark:text-slate-500'
+                    }`}
+                  >
+                    Reviewer {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-[11px] text-neutral-500 dark:text-slate-400">
+              Paste an RIS or PubMed (.nbib) export, or choose a file. Records import as{' '}
+              <span className="font-bold">unscreened</span> for you to triage below.
+            </p>
+            <textarea
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              placeholder={'TY  - JOUR\nTI  - Example title\nAU  - Smith J\nPY  - 2023\nDO  - 10.1000/xyz\nER  -'}
+              className="clay-field w-full h-24 p-4 rounded-xl text-[12px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"
+            />
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => runImport(importText)}
+                disabled={!importText.trim()}
+                className="clay-primary px-5 py-2.5 rounded-xl text-[12px] font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Import pasted text
+              </button>
+              <label className="clay-button rounded-xl px-4 py-2.5 text-[12px] font-bold cursor-pointer">
+                Choose file…
+                <input
+                  type="file"
+                  accept=".ris,.nbib,.txt,.medline"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) onFile(f);
+                    e.currentTarget.value = '';
+                  }}
+                />
+              </label>
+              {importMsg && (
+                <span className="text-[11px] font-mono text-neutral-500 dark:text-slate-400">{importMsg}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Cohen's kappa (dual review) */}
+          {dual && (
+            <div className="clay-soft p-5 rounded-2xl flex flex-wrap items-center gap-3">
+              <span className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+                Inter-rater agreement
+              </span>
+              <span className="text-[12px] font-mono text-neutral-700 dark:text-slate-200">
+                Cohen&apos;s κ ={' '}
+                <span className="font-black">
+                  {kappa.kappa === null ? '—' : kappa.kappa.toFixed(3)}
+                </span>
+              </span>
+              <span className="text-[12px] font-mono text-neutral-500 dark:text-slate-400">
+                {kappa.agreement === null ? '' : `${(kappa.agreement * 100).toFixed(0)}% agreement`}
+              </span>
+              <span className="text-[12px] font-mono text-neutral-500 dark:text-slate-400">
+                · {kappa.n} double-screened · {kappa.conflicts} conflict{kappa.conflicts === 1 ? '' : 's'}
+              </span>
+            </div>
+          )}
 
           {/* Summary + PRISMA */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -250,18 +377,28 @@ export default function LibraryPage() {
           {lib.records.length > 0 && (
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                {(['all', 'include', 'maybe', 'exclude', 'unscreened'] as const).map((k) => {
-                  const n = k === 'all' ? lib.records.length : lib.records.filter((r) => r.decision === k).length;
+                {(['all', 'include', 'maybe', 'exclude', 'unscreened', 'conflict'] as const).map((k) => {
+                  const n =
+                    k === 'all'
+                      ? lib.records.length
+                      : k === 'conflict'
+                      ? lib.records.filter(isConflict).length
+                      : lib.records.filter((r) => r.decision === k).length;
                   if (k !== 'all' && n === 0) return null;
                   const active = filter === k;
-                  const tone = k === 'all' ? 'bg-neutral-100 dark:bg-white/10 text-neutral-700 dark:text-slate-200 border-black/10 dark:border-white/15' : DECISION_META[k].tone;
+                  const tone =
+                    k === 'all'
+                      ? 'bg-neutral-100 dark:bg-white/10 text-neutral-700 dark:text-slate-200 border-black/10 dark:border-white/15'
+                      : k === 'conflict'
+                      ? 'bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-500/30'
+                      : DECISION_META[k].tone;
                   return (
                     <button
                       key={k}
                       onClick={() => setFilter(k)}
                       className={`px-3 py-1.5 text-[11px] font-bold rounded-lg border transition-all ${tone} ${active ? 'ring-2 ring-[#00A598]/40' : 'opacity-80 hover:opacity-100'}`}
                     >
-                      {k === 'all' ? 'All' : DECISION_META[k].label} <span className="ml-1 font-black">{n}</span>
+                      {k === 'all' ? 'All' : k === 'conflict' ? 'Conflicts' : DECISION_META[k].label} <span className="ml-1 font-black">{n}</span>
                     </button>
                   );
                 })}
@@ -269,16 +406,27 @@ export default function LibraryPage() {
 
               <ul className="space-y-3">
                 {filtered.map((r) => (
-                  <li key={r.id} className="clay-soft p-4 rounded-2xl flex flex-col gap-2">
+                  <li key={r.id} className={`clay-soft p-4 rounded-2xl flex flex-col gap-2 ${isConflict(r) ? 'ring-1 ring-orange-400/50' : ''}`}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${DECISION_META[r.decision].tone}`}>
-                        {DECISION_META[r.decision].label}
+                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${DECISION_META[r.decision].tone}`} title="Reviewer 1">
+                        R1 {DECISION_META[r.decision].label}
                       </span>
+                      {r.decision2 && (
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${DECISION_META[r.decision2].tone}`} title="Reviewer 2">
+                          R2 {DECISION_META[r.decision2].label}
+                        </span>
+                      )}
+                      {isConflict(r) && (
+                        <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border border-orange-300 dark:border-orange-500/40 text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-500/10">
+                          Conflict
+                        </span>
+                      )}
                       {r.source && <span className="text-[10px] font-mono text-neutral-500 dark:text-slate-500">{r.source}</span>}
                       {r.year && <span className="text-[10px] font-mono text-neutral-500 dark:text-slate-500 tracking-widest">{r.year}</span>}
                       <div className="ml-auto flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-neutral-400 dark:text-slate-500">R{reviewer}</span>
                         <select
-                          value={r.decision}
+                          value={reviewer === 2 ? r.decision2 ?? 'unscreened' : r.decision}
                           onChange={(e) => setDecision(r.id, e.target.value as Decision)}
                           className="clay-field rounded-lg px-2 py-1 text-[11px] font-bold focus:outline-none"
                         >

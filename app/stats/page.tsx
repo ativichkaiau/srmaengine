@@ -6,6 +6,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import MobileTabBar from '@/components/MobileTabBar';
 import {
   crosstab,
+  effectFrom2x2,
   getPyodide,
   numericColumn,
   parseDataset,
@@ -277,7 +278,22 @@ type MetaStudy = {
   ci_high: number;
   w_fixed: number;
   w_random: number;
+  subgroup?: string | null;
 };
+type SubgroupEntry = {
+  label: string;
+  k: number;
+  fixed: Pooled;
+  random: Pooled;
+  I2: number;
+  tau2: number;
+};
+type SubgroupResult = {
+  groups: SubgroupEntry[];
+  Q_between: number;
+  df: number;
+  p: number | null;
+} | null;
 
 const linScale =
   (d0: number, d1: number, r0: number, r1: number) =>
@@ -291,16 +307,23 @@ function niceTicks(min: number, max: number, count = 5): number[] {
   return out;
 }
 
+type ForestRow =
+  | { kind: 'header'; label: string }
+  | { kind: 'study'; s: MetaStudy; label: string }
+  | { kind: 'diamond'; label: string; p: Pooled; overall?: boolean };
+
 function ForestPlot({
   studies,
   labels,
   random,
   log,
+  subgroups,
 }: {
   studies: MetaStudy[];
   labels: string[];
   random: Pooled;
   log: boolean;
+  subgroups?: SubgroupEntry[] | null;
 }) {
   const disp = (v: number) => (log ? Math.exp(v) : v);
   const W = 720;
@@ -308,12 +331,37 @@ function ForestPlot({
   const top = 24;
   const plotL = 168;
   const plotR = 520;
-  const diamondRow = top + studies.length * rowH + 12;
-  const axisY = diamondRow + 30;
+
+  // Build the ordered row list (grouped by subgroup when available).
+  const rows: ForestRow[] = [];
+  if (subgroups && subgroups.length >= 2) {
+    subgroups.forEach((g) => {
+      rows.push({ kind: 'header', label: g.label });
+      studies.forEach((s, i) => {
+        if ((s.subgroup ?? '') === g.label)
+          rows.push({ kind: 'study', s, label: labels[i] ?? `Study ${i + 1}` });
+      });
+      rows.push({ kind: 'diamond', label: `${g.label} (random)`, p: g.random });
+    });
+  } else {
+    studies.forEach((s, i) =>
+      rows.push({ kind: 'study', s, label: labels[i] ?? `Study ${i + 1}` })
+    );
+  }
+  rows.push({ kind: 'diamond', label: 'Overall (random)', p: random, overall: true });
+
+  const axisY = top + rows.length * rowH + 14;
   const H = axisY + 34;
 
-  const lo = Math.min(...studies.map((s) => s.ci_low), random.ci_low, 0);
-  const hi = Math.max(...studies.map((s) => s.ci_high), random.ci_high, 0);
+  const allCI = [
+    ...studies.flatMap((s) => [s.ci_low, s.ci_high]),
+    random.ci_low,
+    random.ci_high,
+    ...(subgroups ?? []).flatMap((g) => [g.random.ci_low, g.random.ci_high]),
+    0,
+  ];
+  const lo = Math.min(...allCI);
+  const hi = Math.max(...allCI);
   const pad = (hi - lo) * 0.06 || 1;
   const x = linScale(lo - pad, hi + pad, plotL, plotR);
   const nullX = x(0);
@@ -328,47 +376,63 @@ function ForestPlot({
       role="img"
       aria-label="Forest plot"
     >
-      {/* header */}
       <text x={12} y={16} className="fill-neutral-500 dark:fill-slate-400" fontSize="11" fontWeight="700">Study</text>
       <text x={plotR + 6} y={16} className="fill-neutral-500 dark:fill-slate-400" fontSize="11" fontWeight="700">
         {log ? 'Ratio [95% CI]' : 'Effect [95% CI]'}
       </text>
-      {/* null reference line */}
       <line x1={nullX} y1={top - 4} x2={nullX} y2={axisY} stroke="currentColor" strokeOpacity="0.35" strokeDasharray="4 3" />
-      {/* studies */}
-      {studies.map((s, i) => {
+      {rows.map((row, i) => {
         const cy = top + i * rowH + rowH / 2;
-        const sz = sqSize(s.w_random);
+        if (row.kind === 'header') {
+          return (
+            <text key={i} x={12} y={cy + 3.5} fontSize="10.5" fontWeight="800" className="fill-neutral-500 dark:fill-slate-400" letterSpacing="0.5">
+              {row.label.slice(0, 30).toUpperCase()}
+            </text>
+          );
+        }
+        if (row.kind === 'study') {
+          const s = row.s;
+          const sz = sqSize(s.w_random);
+          return (
+            <g key={i}>
+              <text x={22} y={cy + 3.5} fontSize="11.5" className="fill-neutral-700 dark:fill-slate-200">
+                {row.label.slice(0, 22)}
+              </text>
+              <line x1={x(s.ci_low)} y1={cy} x2={x(s.ci_high)} y2={cy} stroke="currentColor" strokeOpacity="0.6" strokeWidth="1.4" />
+              <rect x={x(s.yi) - sz / 2} y={cy - sz / 2} width={sz} height={sz} className="fill-cyan-600 dark:fill-cyan-300" />
+              <text x={plotR + 6} y={cy + 3.5} fontSize="10.5" className="fill-neutral-600 dark:fill-slate-300" fontFamily="monospace">
+                {fmtNum(s.yi)} [{fmtNum(s.ci_low)}, {fmtNum(s.ci_high)}]
+              </text>
+            </g>
+          );
+        }
+        // diamond
+        const p = row.p;
+        const dcol = row.overall
+          ? 'fill-violet-600 dark:fill-violet-300 stroke-violet-700 dark:stroke-violet-200'
+          : 'fill-amber-500 dark:fill-amber-300 stroke-amber-600 dark:stroke-amber-200';
         return (
           <g key={i}>
-            <text x={12} y={cy + 3.5} fontSize="11.5" className="fill-neutral-700 dark:fill-slate-200">
-              {(labels[i] ?? `Study ${i + 1}`).slice(0, 24)}
+            <polygon
+              points={`${x(p.ci_low)},${cy} ${x(p.estimate)},${cy - 7} ${x(p.ci_high)},${cy} ${x(p.estimate)},${cy + 7}`}
+              className={dcol}
+              strokeWidth="1"
+            />
+            <text x={row.overall ? 12 : 22} y={cy + 3.5} fontSize="11" fontWeight="700" className="fill-neutral-800 dark:fill-white">
+              {row.label}
             </text>
-            <line x1={x(s.ci_low)} y1={cy} x2={x(s.ci_high)} y2={cy} stroke="currentColor" strokeOpacity="0.6" strokeWidth="1.4" />
-            <rect x={x(s.yi) - sz / 2} y={cy - sz / 2} width={sz} height={sz} className="fill-cyan-600 dark:fill-cyan-300" />
-            <text x={plotR + 6} y={cy + 3.5} fontSize="10.5" className="fill-neutral-600 dark:fill-slate-300" fontFamily="monospace">
-              {fmtNum(s.yi)} [{fmtNum(s.ci_low)}, {fmtNum(s.ci_high)}]
+            <text x={plotR + 6} y={cy + 3.5} fontSize="10.5" fontWeight="700" className="fill-neutral-800 dark:fill-white" fontFamily="monospace">
+              {fmtNum(p.estimate)} [{fmtNum(p.ci_low)}, {fmtNum(p.ci_high)}]
             </text>
           </g>
         );
       })}
-      {/* random-effects diamond */}
-      <polygon
-        points={`${x(random.ci_low)},${diamondRow} ${x(random.estimate)},${diamondRow - 8} ${x(random.ci_high)},${diamondRow} ${x(random.estimate)},${diamondRow + 8}`}
-        className="fill-violet-600 dark:fill-violet-300 stroke-violet-700 dark:stroke-violet-200"
-        strokeWidth="1"
-      />
-      <text x={12} y={diamondRow + 3.5} fontSize="11.5" fontWeight="700" className="fill-neutral-800 dark:fill-white">Random effects</text>
-      <text x={plotR + 6} y={diamondRow + 3.5} fontSize="10.5" fontWeight="700" className="fill-neutral-800 dark:fill-white" fontFamily="monospace">
-        {fmtNum(random.estimate)} [{fmtNum(random.ci_low)}, {fmtNum(random.ci_high)}]
-      </text>
-      {/* x-axis */}
       <line x1={plotL} y1={axisY} x2={plotR} y2={axisY} stroke="currentColor" strokeOpacity="0.4" />
       {niceTicks(lo - pad, hi + pad).map((t, i) => (
         <g key={i}>
           <line x1={x(t)} y1={axisY} x2={x(t)} y2={axisY + 4} stroke="currentColor" strokeOpacity="0.4" />
           <text x={x(t)} y={axisY + 16} fontSize="9.5" textAnchor="middle" className="fill-neutral-500 dark:fill-slate-400" fontFamily="monospace">
-            {fmt(disp(t), log ? 2 : 2)}
+            {fmt(disp(t), 2)}
           </text>
         </g>
       ))}
@@ -465,6 +529,7 @@ function MetaResult({
     p: number | null;
     note: string;
   };
+  const subgroup = (result.subgroup as SubgroupResult) ?? null;
   const labels =
     meta?.labels ?? studies.map((_, i) => `Study ${i + 1}`);
   const disp = (v: number) => (log ? Math.exp(v) : v);
@@ -502,12 +567,55 @@ function MetaResult({
         </div>
       </div>
 
+      {subgroup && (
+        <div className="clay p-5 rounded-2xl space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+              Subgroups · test for difference
+            </div>
+            {subgroup.p !== null && <PChip p={Number(subgroup.p)} />}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <StatTile label={`Q between (df ${subgroup.df})`} value={fmt(subgroup.Q_between, 2)} />
+            <StatTile label="Q between p" value={fmtOptionalP(subgroup.p)} />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px] font-mono border-collapse">
+              <thead>
+                <tr className="text-neutral-500 dark:text-slate-400">
+                  <th className="text-left px-2 py-1">Subgroup</th>
+                  <th className="text-right px-2 py-1">k</th>
+                  <th className="text-right px-2 py-1">Random [95% CI]</th>
+                  <th className="text-right px-2 py-1">I²</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subgroup.groups.map((g, i) => (
+                  <tr key={i} className="odd:bg-black/[0.02] dark:odd:bg-white/[0.02]">
+                    <td className="px-2 py-1 text-neutral-700 dark:text-slate-200 whitespace-nowrap">{g.label}</td>
+                    <td className="px-2 py-1 text-right">{g.k}</td>
+                    <td className="px-2 py-1 text-right">{showCI(g.random)}</td>
+                    <td className="px-2 py-1 text-right">{fmt(g.I2, 1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="clay-soft p-5 rounded-2xl space-y-2">
         <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
           Forest plot
         </div>
         <div className="overflow-x-auto">
-          <ForestPlot studies={studies} labels={labels} random={random} log={log} />
+          <ForestPlot
+            studies={studies}
+            labels={labels}
+            random={random}
+            log={log}
+            subgroups={subgroup?.groups}
+          />
         </div>
       </div>
 
@@ -585,11 +693,17 @@ function ColumnSelect({
         className="clay-field w-full p-3 rounded-xl text-[13px] font-semibold text-neutral-700 dark:text-slate-200 focus:outline-none"
       >
         {options.length === 0 && <option value={-1}>No suitable column</option>}
-        {options.map((i) => (
-          <option key={i} value={i}>
-            {dataset.columns[i]} · {dataset.kinds[i]}
-          </option>
-        ))}
+        {options.map((i) =>
+          i < 0 ? (
+            <option key={i} value={i}>
+              (none)
+            </option>
+          ) : (
+            <option key={i} value={i}>
+              {dataset.columns[i]} · {dataset.kinds[i]}
+            </option>
+          )
+        )}
       </select>
     </div>
   );
@@ -640,10 +754,18 @@ export default function StatsPage() {
     candidates.includes(sel) ? sel : candidates[0] ?? -1;
 
   // --- Meta-analysis inputs ---
+  const [metaKind, setMetaKind] = useState<'effect' | 'events'>('effect');
+  const [metaMeasure, setMetaMeasure] = useState<'or' | 'rr'>('or');
   const [metaText, setMetaText] = useState('');
   const [metaStudyCol, setMetaStudyCol] = useState(0);
   const [metaEffectCol, setMetaEffectCol] = useState(1);
   const [metaSeCol, setMetaSeCol] = useState(2);
+  const [metaSubCol, setMetaSubCol] = useState(-1); // subgroup column (-1 = none)
+  // Event-data (2×2) columns: events & totals per arm.
+  const [metaEvtT, setMetaEvtT] = useState(1);
+  const [metaNT, setMetaNT] = useState(2);
+  const [metaEvtC, setMetaEvtC] = useState(3);
+  const [metaNC, setMetaNC] = useState(4);
   const [metaLog, setMetaLog] = useState(false);
   // Study labels + log flag stashed for the result renderer (labels aren't
   // carried through the Python interchange).
@@ -823,41 +945,99 @@ export default function StatsPage() {
           const labels: string[] = [];
           const yi: number[] = [];
           const sei: number[] = [];
+          const subs: string[] = [];
+          let anySub = false;
+
+          const pushStudy = (
+            label: string,
+            eff: number,
+            se: number,
+            sub: string
+          ) => {
+            if (!Number.isFinite(eff) || !Number.isFinite(se) || se <= 0) return;
+            yi.push(eff);
+            sei.push(se);
+            labels.push(label || `Study ${yi.length}`);
+            subs.push(sub);
+            if (sub) anySub = true;
+          };
+
           if (useData) {
             const sCol = resolve(metaStudyCol, allCols);
-            const eCol = resolve(metaEffectCol, numericCols);
-            const seCol = resolve(metaSeCol, numericCols);
-            if (eCol < 0 || seCol < 0)
-              throw new Error('Pick an effect column and a standard-error column.');
-            if (eCol === seCol)
-              throw new Error('Effect and standard error must be different columns.');
-            dataset.rows.forEach((row) => {
-              const eff = Number(row[eCol]);
-              const se = Number(row[seCol]);
-              if (Number.isFinite(eff) && Number.isFinite(se) && se > 0) {
-                yi.push(eff);
-                sei.push(se);
-                labels.push(
-                  (sCol >= 0 ? (row[sCol] ?? '').trim() : '') || `Study ${yi.length}`
+            const subCol = metaSubCol;
+            if (metaKind === 'events') {
+              const cols = [metaEvtT, metaNT, metaEvtC, metaNC].map((c) =>
+                resolve(c, numericCols)
+              );
+              if (cols.some((c) => c < 0))
+                throw new Error('Pick the four event/total columns.');
+              dataset.rows.forEach((row) => {
+                const [eT, nT, eC, nC] = cols.map((c) => Number(row[c]));
+                const es = effectFrom2x2(eT, nT, eC, nC, metaMeasure);
+                if (!es) return;
+                pushStudy(
+                  (sCol >= 0 ? (row[sCol] ?? '').trim() : '') || `Study ${yi.length + 1}`,
+                  es.yi,
+                  es.sei,
+                  subCol >= 0 ? (row[subCol] ?? '').trim() : ''
                 );
-              }
-            });
+              });
+            } else {
+              const eCol = resolve(metaEffectCol, numericCols);
+              const seCol = resolve(metaSeCol, numericCols);
+              if (eCol < 0 || seCol < 0)
+                throw new Error('Pick an effect column and a standard-error column.');
+              if (eCol === seCol)
+                throw new Error('Effect and standard error must be different columns.');
+              dataset.rows.forEach((row) => {
+                pushStudy(
+                  (sCol >= 0 ? (row[sCol] ?? '').trim() : '') || `Study ${yi.length + 1}`,
+                  Number(row[eCol]),
+                  Number(row[seCol]),
+                  subCol >= 0 ? (row[subCol] ?? '').trim() : ''
+                );
+              });
+            }
           } else {
             metaText
               .split(/\r?\n/)
               .map((l) => l.trim())
               .filter(Boolean)
               .forEach((line) => {
-                const parts = line.split(/[,;\t]/).map((s) => s.trim()).filter(Boolean);
-                if (parts.length < 2) return;
-                const se = Number(parts[parts.length - 1]);
-                const eff = Number(parts[parts.length - 2]);
-                if (!Number.isFinite(eff) || !Number.isFinite(se) || se <= 0) return;
-                yi.push(eff);
-                sei.push(se);
-                labels.push(
-                  parts.slice(0, parts.length - 2).join(' ') || `Study ${yi.length}`
-                );
+                const parts = line
+                  .split(/[,;\t]/)
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                if (metaKind === 'events') {
+                  // label, eventsT, nT, eventsC, nC [, subgroup]
+                  if (parts.length < 5) return;
+                  const nums = parts.slice(1, 5).map(Number);
+                  const es = effectFrom2x2(
+                    nums[0], nums[1], nums[2], nums[3], metaMeasure
+                  );
+                  if (!es) return;
+                  pushStudy(parts[0], es.yi, es.sei, parts[5] ?? '');
+                } else {
+                  // label, effect, se [, subgroup]
+                  if (parts.length < 3) {
+                    // allow effect, se (no label)
+                    if (parts.length === 2) {
+                      pushStudy(
+                        `Study ${yi.length + 1}`,
+                        Number(parts[0]),
+                        Number(parts[1]),
+                        ''
+                      );
+                    }
+                    return;
+                  }
+                  pushStudy(
+                    parts[0],
+                    Number(parts[1]),
+                    Number(parts[2]),
+                    parts[3] ?? ''
+                  );
+                }
               });
           }
           if (yi.length < 2)
@@ -865,7 +1045,8 @@ export default function StatsPage() {
               'Meta-analysis needs at least 2 studies with a positive standard error.'
             );
           payload = { yi, sei };
-          setMetaMeta({ labels, log: metaLog });
+          if (anySub) (payload as Record<string, unknown>).subgroups = subs;
+          setMetaMeta({ labels, log: metaKind === 'events' ? true : metaLog });
           break;
         }
       }
@@ -907,18 +1088,32 @@ export default function StatsPage() {
       setYText('2.1, 4.0, 6.2, 7.9, 10.1, 11.8, 14.2, 16.1, 17.9, 20.3');
     },
     meta: () => {
-      // Six trials as log odds ratios (negative = protective) with SEs.
-      setMetaText(
-        [
-          'Trial A, -0.35, 0.18',
-          'Trial B, -0.52, 0.25',
-          'Trial C, -0.10, 0.15',
-          'Trial D, -0.68, 0.30',
-          'Trial E, -0.22, 0.12',
-          'Trial F, -0.45, 0.20',
-        ].join('\n')
-      );
-      setMetaLog(true);
+      if (metaKind === 'events') {
+        // Six trials as 2×2 event counts with a subgroup column.
+        setMetaText(
+          [
+            'Trial A, 12, 100, 20, 100, Adults',
+            'Trial B, 8, 80, 15, 82, Adults',
+            'Trial C, 20, 150, 28, 150, Adults',
+            'Trial D, 5, 60, 6, 58, Children',
+            'Trial E, 9, 90, 14, 88, Children',
+            'Trial F, 15, 120, 18, 118, Children',
+          ].join('\n')
+        );
+      } else {
+        // Six trials as log odds ratios (negative = protective) with SEs.
+        setMetaText(
+          [
+            'Trial A, -0.35, 0.18, Adults',
+            'Trial B, -0.52, 0.25, Adults',
+            'Trial C, -0.10, 0.15, Adults',
+            'Trial D, -0.68, 0.30, Children',
+            'Trial E, -0.22, 0.12, Children',
+            'Trial F, -0.45, 0.20, Children',
+          ].join('\n')
+        );
+        setMetaLog(true);
+      }
     },
   };
 
@@ -973,6 +1168,7 @@ export default function StatsPage() {
             <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">
               Statistics
             </span>
+            <Link href="/library" className="clay-tab px-3 py-1.5 rounded-lg">Library</Link>
           </nav>
         </div>
         <div className="flex gap-4 lg:gap-6 items-center">
@@ -1440,6 +1636,50 @@ export default function StatsPage() {
 
             {mode === 'meta' && (
               <div className="space-y-4">
+                {/* data-kind + measure toggles */}
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Data</label>
+                    {(
+                      [
+                        ['effect', 'Effect + SE'],
+                        ['events', 'Event counts (2×2)'],
+                      ] as ['effect' | 'events', string][]
+                    ).map(([kind, lbl]) => (
+                      <button
+                        key={kind}
+                        onClick={() => setMetaKind(kind)}
+                        className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                          metaKind === kind ? 'clay-tab-active' : 'clay-button text-neutral-400 dark:text-slate-500'
+                        }`}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                  {metaKind === 'events' && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Measure</label>
+                      {(
+                        [
+                          ['or', 'Odds ratio'],
+                          ['rr', 'Risk ratio'],
+                        ] as ['or' | 'rr', string][]
+                      ).map(([m, lbl]) => (
+                        <button
+                          key={m}
+                          onClick={() => setMetaMeasure(m)}
+                          className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                            metaMeasure === m ? 'clay-tab-active' : 'clay-button text-neutral-400 dark:text-slate-500'
+                          }`}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {inputSource === 'dataset' && hasData ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <ColumnSelect
@@ -1449,45 +1689,57 @@ export default function StatsPage() {
                       options={allCols}
                       dataset={dataset}
                     />
+                    {metaKind === 'events' ? (
+                      <>
+                        <ColumnSelect label="Events (treatment)" value={resolve(metaEvtT, numericCols)} onChange={setMetaEvtT} options={numericCols} dataset={dataset} accent="text-cyan-600 dark:text-cyan-300" />
+                        <ColumnSelect label="Total (treatment)" value={resolve(metaNT, numericCols)} onChange={setMetaNT} options={numericCols} dataset={dataset} accent="text-cyan-600 dark:text-cyan-300" />
+                        <ColumnSelect label="Events (control)" value={resolve(metaEvtC, numericCols)} onChange={setMetaEvtC} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
+                        <ColumnSelect label="Total (control)" value={resolve(metaNC, numericCols)} onChange={setMetaNC} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
+                      </>
+                    ) : (
+                      <>
+                        <ColumnSelect label="Effect size (numeric)" value={resolve(metaEffectCol, numericCols)} onChange={setMetaEffectCol} options={numericCols} dataset={dataset} accent="text-cyan-600 dark:text-cyan-300" />
+                        <ColumnSelect label="Standard error (numeric)" value={resolve(metaSeCol, numericCols)} onChange={setMetaSeCol} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
+                      </>
+                    )}
                     <ColumnSelect
-                      label="Effect size (numeric)"
-                      value={resolve(metaEffectCol, numericCols)}
-                      onChange={setMetaEffectCol}
-                      options={numericCols}
+                      label="Subgroup (optional)"
+                      value={metaSubCol}
+                      onChange={setMetaSubCol}
+                      options={[-1, ...allCols]}
                       dataset={dataset}
-                      accent="text-cyan-600 dark:text-cyan-300"
-                    />
-                    <ColumnSelect
-                      label="Standard error (numeric)"
-                      value={resolve(metaSeCol, numericCols)}
-                      onChange={setMetaSeCol}
-                      options={numericCols}
-                      dataset={dataset}
-                      accent="text-violet-600 dark:text-violet-300"
                     />
                   </div>
                 ) : (
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
-                      One study per line: label, effect, standard error
+                      {metaKind === 'events'
+                        ? 'One study per line: label, events(T), n(T), events(C), n(C) [, subgroup]'
+                        : 'One study per line: label, effect, standard error [, subgroup]'}
                     </label>
                     <textarea
                       value={metaText}
                       onChange={(e) => setMetaText(e.target.value)}
-                      placeholder={'Trial A, -0.35, 0.18\nTrial B, -0.52, 0.25'}
+                      placeholder={
+                        metaKind === 'events'
+                          ? 'Trial A, 12, 100, 20, 100\nTrial B, 8, 80, 15, 82'
+                          : 'Trial A, -0.35, 0.18\nTrial B, -0.52, 0.25'
+                      }
                       className="clay-field w-full h-32 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"
                     />
                   </div>
                 )}
-                <label className="inline-flex items-center gap-2 text-[12px] font-bold text-neutral-600 dark:text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={metaLog}
-                    onChange={(e) => setMetaLog(e.target.checked)}
-                    className="accent-[#00A598]"
-                  />
-                  Effects are on a log scale (OR / RR / HR) — show as ratios
-                </label>
+                {metaKind === 'effect' && (
+                  <label className="inline-flex items-center gap-2 text-[12px] font-bold text-neutral-600 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={metaLog}
+                      onChange={(e) => setMetaLog(e.target.checked)}
+                      className="accent-[#00A598]"
+                    />
+                    Effects are on a log scale (OR / RR / HR) — show as ratios
+                  </label>
+                )}
               </div>
             )}
 

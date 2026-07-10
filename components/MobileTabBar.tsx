@@ -9,7 +9,8 @@ import { usePathname } from 'next/navigation';
 const TABS = [
   { href: '/', label: 'Scanner', icon: '⌕' },
   { href: '/research', label: 'Research', icon: '▤' },
-  { href: '/stats', label: 'Statistics', icon: 'Σ' },
+  { href: '/stats', label: 'Stats', icon: 'Σ' },
+  { href: '/library', label: 'Library', icon: '❒' },
 ];
 
 export default function MobileTabBar() {
@@ -22,7 +23,7 @@ export default function MobileTabBar() {
       aria-label="Primary"
       className="clay-header clay-bottom-nav sm:hidden fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]"
     >
-      <ul className="grid grid-cols-3 gap-1 px-2 py-1.5">
+      <ul className="grid grid-cols-4 gap-1 px-2 py-1.5">
         {TABS.map((tab) => {
           const active = isActive(tab.href);
           return (

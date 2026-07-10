@@ -471,6 +471,10 @@ try:
         k = int(yi.size)
         if k < 2:
             raise ValueError('Meta-analysis needs at least 2 studies with a positive standard error.')
+        subgroups_raw = data.get('subgroups')
+        sg = None
+        if subgroups_raw is not None and len(subgroups_raw) > 0:
+            sg = [str(subgroups_raw[idx[j]]).strip() for j in range(k)]
         z = 1.959963984540054
         vi = sei ** 2
         wi = 1.0 / vi
@@ -513,6 +517,7 @@ try:
                 'ci_high': float(yi[j] + z * sei[j]),
                 'w_fixed': float(wi[j] / sw * 100.0),
                 'w_random': float(wr[j] / swr * 100.0),
+                'subgroup': (sg[j] if sg is not None else None),
             })
 
         # Egger's regression test for funnel asymmetry (needs >= 3 studies with
@@ -551,6 +556,52 @@ try:
                 ),
             }
 
+        # Subgroup analysis (fixed-effect between-group test on subgroup estimates)
+        subgroup_result = None
+        if sg is not None:
+            levels = []
+            for s in sg:
+                if s and s not in levels:
+                    levels.append(s)
+            if len(levels) >= 2:
+                groups_out = []
+                fe_est = []
+                fe_w = []
+                for lv in levels:
+                    gm = np.array([s == lv for s in sg])
+                    gy = yi[gm]; gse = sei[gm]
+                    gv = gse ** 2; gw = 1.0 / gv; gsw = float(gw.sum())
+                    gfe = float((gw * gy).sum() / gsw)
+                    gfe_se = float(np.sqrt(1.0 / gsw))
+                    gQ = float((gw * (gy - gfe) ** 2).sum())
+                    gdf = int(gy.size - 1)
+                    gC = gsw - float((gw ** 2).sum()) / gsw
+                    gtau2 = float(max(0.0, (gQ - gdf) / gC)) if gC > 0 else 0.0
+                    gwr = 1.0 / (gv + gtau2); gswr = float(gwr.sum())
+                    gre = float((gwr * gy).sum() / gswr)
+                    gre_se = float(np.sqrt(1.0 / gswr))
+                    gI2 = float(max(0.0, (gQ - gdf) / gQ) * 100.0) if gQ > 0 else 0.0
+                    groups_out.append({
+                        'label': lv,
+                        'k': int(gy.size),
+                        'fixed': pooled(gfe, gfe_se),
+                        'random': pooled(gre, gre_se),
+                        'I2': gI2,
+                        'tau2': gtau2,
+                    })
+                    fe_est.append(gfe); fe_w.append(gsw)
+                fe_est = np.array(fe_est); fe_w = np.array(fe_w)
+                theta_bar = float((fe_w * fe_est).sum() / fe_w.sum())
+                Qb = float((fe_w * (fe_est - theta_bar) ** 2).sum())
+                dfb = len(levels) - 1
+                Qb_p = float(st.chi2.sf(Qb, dfb)) if dfb > 0 else None
+                subgroup_result = {
+                    'groups': groups_out,
+                    'Q_between': Qb,
+                    'df': dfb,
+                    'p': Qb_p,
+                }
+
         result = {
             'test': 'Meta-analysis (inverse-variance)',
             'k': k,
@@ -561,6 +612,7 @@ try:
             },
             'egger': egger,
             'studies': studies,
+            'subgroup': subgroup_result,
         }
 
     else:
@@ -736,6 +788,40 @@ export function splitByGroup(
     map.get(g)!.push(v);
   }
   return order.map((level) => ({ level, values: map.get(level)! }));
+}
+
+// 2×2 event data → log odds ratio or log risk ratio with its standard error.
+// Applies the Haldane–Anscombe 0.5 continuity correction when any cell is zero.
+export function effectFrom2x2(
+  eT: number, // events, treatment
+  nT: number, // total, treatment
+  eC: number, // events, control
+  nC: number, // total, control
+  measure: 'or' | 'rr'
+): { yi: number; sei: number } | null {
+  if (![eT, nT, eC, nC].every(Number.isFinite)) return null;
+  if (nT <= 0 || nC <= 0) return null;
+  let a = eT;
+  let b = nT - eT;
+  let c = eC;
+  let d = nC - eC;
+  if (a < 0 || b < 0 || c < 0 || d < 0) return null;
+  if (a === 0 || b === 0 || c === 0 || d === 0) {
+    a += 0.5;
+    b += 0.5;
+    c += 0.5;
+    d += 0.5;
+  }
+  if (measure === 'or') {
+    const yi = Math.log((a * d) / (b * c));
+    const sei = Math.sqrt(1 / a + 1 / b + 1 / c + 1 / d);
+    return { yi, sei };
+  }
+  const n1 = a + b;
+  const n2 = c + d;
+  const yi = Math.log(a / n1 / (c / n2));
+  const sei = Math.sqrt(1 / a - 1 / n1 + 1 / c - 1 / n2);
+  return { yi, sei };
 }
 
 // Cross-tabulate two categorical columns → contingency table + level labels.

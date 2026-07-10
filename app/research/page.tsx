@@ -22,6 +22,12 @@ import {
   type Source,
   type SourcePage,
 } from '@/lib/search';
+import {
+  addRecord,
+  loadLibrary,
+  recordKey,
+  type Decision,
+} from '@/lib/library';
 
 type Hit = SearchResult & { classification: Classification };
 
@@ -143,6 +149,39 @@ export default function ResearchPage() {
   const [filter, setFilter] = useState<Verdict | 'ALL'>('ALL');
   const [hasSearched, setHasSearched] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Screening decisions already in the library (keyed like the library).
+  const [libDecisions, setLibDecisions] = useState<Record<string, Decision>>({});
+  useEffect(() => {
+    const sync = () => {
+      const map: Record<string, Decision> = {};
+      for (const r of loadLibrary().records) map[recordKey(r)] = r.decision;
+      setLibDecisions(map);
+    };
+    sync();
+    window.addEventListener('srma-library-changed', sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener('srma-library-changed', sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
+  const triage = (h: Hit, decision: Decision) => {
+    addRecord(
+      {
+        id: recordKey(h),
+        title: h.title,
+        authors: h.authors,
+        year: h.year,
+        doi: h.doi,
+        pmid: h.pmid,
+        url: h.url,
+        source: SOURCE_META[h.source]?.label ?? h.source,
+        decision,
+      }
+    );
+  };
 
   // Pick up protocol changes if the user edits criteria in another tab.
   useEffect(() => {
@@ -339,6 +378,7 @@ export default function ResearchPage() {
             <Link href="/" className="clay-tab px-3 py-1.5 rounded-lg">Scanner</Link>
             <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Research</span>
             <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
+            <Link href="/library" className="clay-tab px-3 py-1.5 rounded-lg">Library</Link>
           </nav>
         </div>
         <div className="flex gap-4 lg:gap-6 items-center">
@@ -660,6 +700,43 @@ export default function ResearchPage() {
                         >
                           {h.title || '(untitled)'}
                         </a>
+
+                        {/* Screening triage → library */}
+                        <div className="flex items-center gap-1.5">
+                          {(
+                            [
+                              ['include', 'Include', 'emerald'],
+                              ['maybe', 'Maybe', 'yellow'],
+                              ['exclude', 'Exclude', 'rose'],
+                            ] as [Decision, string, string][]
+                          ).map(([d, lbl, tone]) => {
+                            const active = libDecisions[recordKey(h)] === d;
+                            const on =
+                              tone === 'emerald'
+                                ? 'bg-emerald-500 text-white border-emerald-500'
+                                : tone === 'yellow'
+                                ? 'bg-yellow-500 text-white border-yellow-500'
+                                : 'bg-rose-500 text-white border-rose-500';
+                            return (
+                              <button
+                                key={d}
+                                onClick={() => triage(h, d)}
+                                className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border transition-all ${
+                                  active
+                                    ? on
+                                    : 'clay-button text-neutral-500 dark:text-slate-400'
+                                }`}
+                              >
+                                {lbl}
+                              </button>
+                            );
+                          })}
+                          {libDecisions[recordKey(h)] && (
+                            <span className="text-[10px] font-mono text-neutral-400 dark:text-slate-500">
+                              in library
+                            </span>
+                          )}
+                        </div>
 
                         {h.authors && (
                           <p className="text-[11px] text-neutral-500 dark:text-slate-500 font-mono truncate">

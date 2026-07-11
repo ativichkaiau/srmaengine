@@ -437,6 +437,13 @@ function ForestPlot({
           </text>
         </g>
       ))}
+      {/* Directional cue relative to the line of no effect (RevMan convention). */}
+      <text x={nullX - 6} y={axisY + 30} fontSize="9" textAnchor="end" className="fill-neutral-400 dark:fill-slate-500">
+        ← favours treatment
+      </text>
+      <text x={nullX + 6} y={axisY + 30} fontSize="9" textAnchor="start" className="fill-neutral-400 dark:fill-slate-500">
+        favours control →
+      </text>
     </svg>
   );
 }
@@ -511,7 +518,7 @@ function MetaResult({
   meta,
 }: {
   result: Record<string, unknown>;
-  meta: { labels: string[]; log: boolean } | null;
+  meta: { labels: string[]; log: boolean; kind?: string } | null;
 }) {
   const log = meta?.log ?? false;
   const studies = (result.studies as MetaStudy[]) ?? [];
@@ -540,9 +547,18 @@ function MetaResult({
       ci_high: number;
       I2: number;
     }[]) ?? [];
+  const method = (result.method as string) ?? null;
+  const totalEvents =
+    (result.total_events as { treatment: number; control: number } | null) ?? null;
+  const kind = meta?.kind ?? 'effect';
   const labels =
     meta?.labels ?? studies.map((_, i) => `Study ${i + 1}`);
   const disp = (v: number) => (log ? Math.exp(v) : v);
+  // RevMan-style p-value string: "P = 0.01" or "P < 0.0001".
+  const pStr = (p: number | null | undefined) => {
+    if (p === null || p === undefined || !Number.isFinite(p)) return 'P —';
+    return p < 0.0001 ? 'P < 0.0001' : `P = ${p < 0.01 ? p.toFixed(4) : p.toFixed(2)}`;
+  };
   const showCI = (p: Pooled) =>
     `${fmt(disp(p.estimate), log ? 3 : 3)} [${fmt(disp(p.ci_low), 3)}, ${fmt(disp(p.ci_high), 3)}]`;
 
@@ -580,6 +596,24 @@ function MetaResult({
               value={`${fmt(disp(prediction.low), 3)} to ${fmt(disp(prediction.high), 3)}`}
             />
           )}
+        </div>
+
+        {/* RevMan / Cochrane-style readout — matches the SRMA lecture's forest plots. */}
+        <div className="rounded-xl bg-black/[0.03] dark:bg-white/[0.04] px-4 py-3 font-mono text-[11.5px] leading-relaxed text-neutral-600 dark:text-slate-300 space-y-1">
+          {method && (
+            <div className="text-neutral-400 dark:text-slate-500">{method}</div>
+          )}
+          {kind === 'events' && totalEvents && (
+            <div>
+              Total events: {totalEvents.treatment} (treatment), {totalEvents.control} (control)
+            </div>
+          )}
+          <div>
+            Heterogeneity: τ² = {fmt(het.tau2, 2)}; χ² = {fmt(het.Q, 2)}, df = {het.df} ({pStr(het.p)}); I² = {fmt(het.I2, 0)}%
+          </div>
+          <div>
+            Test for overall effect: Z = {fmt(Math.abs(Number(random.z)), 2)} ({pStr(random.p as number | null)})
+          </div>
         </div>
       </div>
 
@@ -825,7 +859,7 @@ export default function StatsPage() {
   const [metaLog, setMetaLog] = useState(false);
   // Study labels + log flag stashed for the result renderer (labels aren't
   // carried through the Python interchange).
-  const [metaMeta, setMetaMeta] = useState<{ labels: string[]; log: boolean } | null>(null);
+  const [metaMeta, setMetaMeta] = useState<{ labels: string[]; log: boolean; kind?: string } | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
@@ -1003,6 +1037,12 @@ export default function StatsPage() {
           const sei: number[] = [];
           const subs: string[] = [];
           let anySub = false;
+          // Raw 2x2 counts (dichotomous only), aligned to the pushed studies,
+          // so the engine can do genuine Mantel–Haenszel pooling + total events.
+          const cA: number[] = [];
+          const cN1: number[] = [];
+          const cC: number[] = [];
+          const cN2: number[] = [];
 
           const pushStudy = (
             label: string,
@@ -1010,12 +1050,13 @@ export default function StatsPage() {
             se: number,
             sub: string
           ) => {
-            if (!Number.isFinite(eff) || !Number.isFinite(se) || se <= 0) return;
+            if (!Number.isFinite(eff) || !Number.isFinite(se) || se <= 0) return false;
             yi.push(eff);
             sei.push(se);
             labels.push(label || `Study ${yi.length}`);
             subs.push(sub);
             if (sub) anySub = true;
+            return true;
           };
 
           if (useData) {
@@ -1031,12 +1072,16 @@ export default function StatsPage() {
                 const [eT, nT, eC, nC] = cols.map((c) => Number(row[c]));
                 const es = effectFrom2x2(eT, nT, eC, nC, metaMeasure);
                 if (!es) return;
-                pushStudy(
-                  (sCol >= 0 ? (row[sCol] ?? '').trim() : '') || `Study ${yi.length + 1}`,
-                  es.yi,
-                  es.sei,
-                  subCol >= 0 ? (row[subCol] ?? '').trim() : ''
-                );
+                if (
+                  pushStudy(
+                    (sCol >= 0 ? (row[sCol] ?? '').trim() : '') || `Study ${yi.length + 1}`,
+                    es.yi,
+                    es.sei,
+                    subCol >= 0 ? (row[subCol] ?? '').trim() : ''
+                  )
+                ) {
+                  cA.push(eT); cN1.push(nT); cC.push(eC); cN2.push(nC);
+                }
               });
             } else if (metaKind === 'continuous') {
               const cols = [metaM1, metaSd1, metaN1, metaM2, metaSd2, metaN2].map(
@@ -1089,7 +1134,9 @@ export default function StatsPage() {
                     nums[0], nums[1], nums[2], nums[3], metaMeasure
                   );
                   if (!es) return;
-                  pushStudy(parts[0], es.yi, es.sei, parts[5] ?? '');
+                  if (pushStudy(parts[0], es.yi, es.sei, parts[5] ?? '')) {
+                    cA.push(nums[0]); cN1.push(nums[1]); cC.push(nums[2]); cN2.push(nums[3]);
+                  }
                 } else if (metaKind === 'continuous') {
                   // label, m1, sd1, n1, m2, sd2, n2 [, subgroup]
                   if (parts.length < 7) return;
@@ -1128,9 +1175,14 @@ export default function StatsPage() {
             );
           payload = { yi, sei };
           if (anySub) (payload as Record<string, unknown>).subgroups = subs;
+          if (metaKind === 'events' && cA.length === yi.length && cA.length > 0) {
+            (payload as Record<string, unknown>).counts = { a: cA, n1: cN1, c: cC, n2: cN2 };
+            (payload as Record<string, unknown>).measure = metaMeasure;
+          }
           setMetaMeta({
             labels,
             log: metaKind === 'events' ? true : metaKind === 'continuous' ? false : metaLog,
+            kind: metaKind,
           });
           break;
         }

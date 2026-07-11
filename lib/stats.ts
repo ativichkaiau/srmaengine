@@ -482,8 +482,52 @@ try:
         theta_fe = float((wi * yi).sum() / sw)
         se_fe = float(np.sqrt(1.0 / sw))
 
-        # Heterogeneity
-        Q = float((wi * (yi - theta_fe) ** 2).sum())
+        # Mantel–Haenszel fixed-effect pooling for dichotomous (2x2) data — the
+        # RevMan/Cochrane convention the course teaches ("M-H"). Computed first
+        # because RevMan centres the heterogeneity Q on the M-H pooled estimate
+        # (not the inverse-variance mean); random effects then stay DerSimonian–
+        # Laird, exactly matching RevMan's "M-H, Random" readout. M-H also needs
+        # no continuity correction, so single zero cells are handled cleanly.
+        mh_ln = None
+        mh_se = None
+        total_events = None
+        counts = data.get('counts')
+        measure = data.get('measure')
+        if counts is not None and measure in ('or', 'rr'):
+            ca = np.asarray(counts['a'], dtype=float)[mask]
+            cn1 = np.asarray(counts['n1'], dtype=float)[mask]
+            cc = np.asarray(counts['c'], dtype=float)[mask]
+            cn2 = np.asarray(counts['n2'], dtype=float)[mask]
+            cb = cn1 - ca
+            cd = cn2 - cc
+            cN = cn1 + cn2
+            total_events = {'treatment': float(ca.sum()), 'control': float(cc.sum())}
+            good = cN > 0
+            if measure == 'or':
+                R = (ca * cd / cN)[good]
+                S = (cb * cc / cN)[good]
+                sumR = float(R.sum()); sumS = float(S.sum())
+                if sumR > 0 and sumS > 0:
+                    mh_ln = float(np.log(sumR / sumS))
+                    P = ((ca + cd) / cN)[good]
+                    Qc = ((cb + cc) / cN)[good]
+                    var_ln = (float((P * R).sum()) / (2 * sumR ** 2)
+                              + float((P * S + Qc * R).sum()) / (2 * sumR * sumS)
+                              + float((Qc * S).sum()) / (2 * sumS ** 2))
+                    mh_se = float(np.sqrt(var_ln)) if var_ln > 0 else None
+            else:
+                num = (ca * cn2 / cN)[good]
+                den = (cc * cn1 / cN)[good]
+                sumnum = float(num.sum()); sumden = float(den.sum())
+                if sumnum > 0 and sumden > 0:
+                    mh_ln = float(np.log(sumnum / sumden))
+                    var_ln = float((((cn1 * cn2 * (ca + cc) - ca * cc * cN) / cN ** 2)[good]).sum()) / (sumnum * sumden)
+                    mh_se = float(np.sqrt(var_ln)) if var_ln > 0 else None
+
+        # Heterogeneity — Cochran's Q centred on the M-H estimate when available
+        # (RevMan convention for dichotomous data), otherwise the IV mean.
+        q_center = mh_ln if mh_ln is not None else theta_fe
+        Q = float((wi * (yi - q_center) ** 2).sum())
         df = k - 1
         Q_p = float(st.chi2.sf(Q, df)) if df > 0 else None
         I2 = float(max(0.0, (Q - df) / Q) * 100.0) if Q > 0 else 0.0
@@ -644,10 +688,21 @@ try:
                     'p': Qb_p,
                 }
 
+        # Build the M-H fixed-effect summary (log scale) from the values computed
+        # earlier; fall back to inverse-variance when 2x2 counts weren't supplied.
+        mh_fixed = pooled(mh_ln, mh_se) if (mh_ln is not None and mh_se is not None) else None
+        if measure in ('or', 'rr'):
+            method = 'Mantel–Haenszel (fixed) · DerSimonian–Laird (random)'
+        else:
+            method = 'Inverse variance (fixed) · DerSimonian–Laird (random)'
+
         result = {
-            'test': 'Meta-analysis (inverse-variance)',
+            'test': 'Meta-analysis',
+            'method': method,
+            'total_events': total_events,
             'k': k,
-            'fixed': pooled(theta_fe, se_fe),
+            'fixed': mh_fixed if mh_fixed is not None else pooled(theta_fe, se_fe),
+            'fixed_iv': pooled(theta_fe, se_fe),
             'random': pooled(theta_re, se_re),
             'heterogeneity': {
                 'Q': Q, 'df': df, 'p': Q_p, 'I2': I2, 'tau2': tau2,

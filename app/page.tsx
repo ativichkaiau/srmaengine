@@ -1072,6 +1072,7 @@ export default function SRMATelemetryPage() {
             <Link href="/research" className="clay-tab px-3 py-1.5 rounded-lg">Research</Link>
             <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
             <Link href="/library" className="clay-tab px-3 py-1.5 rounded-lg">Library</Link>
+            <Link href="/appraisal" className="clay-tab px-3 py-1.5 rounded-lg">Appraisal</Link>
           </nav>
         </div>
 

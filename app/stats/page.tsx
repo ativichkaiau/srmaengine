@@ -1318,6 +1318,7 @@ export default function StatsPage() {
               Statistics
             </span>
             <Link href="/library" className="clay-tab px-3 py-1.5 rounded-lg">Library</Link>
+            <Link href="/appraisal" className="clay-tab px-3 py-1.5 rounded-lg">Appraisal</Link>
           </nav>
         </div>
         <div className="flex gap-4 lg:gap-6 items-center">

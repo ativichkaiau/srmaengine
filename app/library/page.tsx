@@ -219,6 +219,7 @@ export default function LibraryPage() {
             <Link href="/research" className="clay-tab px-3 py-1.5 rounded-lg">Research</Link>
             <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
             <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Library</span>
+            <Link href="/appraisal" className="clay-tab px-3 py-1.5 rounded-lg">Appraisal</Link>
           </nav>
         </div>
         <ThemeToggle />

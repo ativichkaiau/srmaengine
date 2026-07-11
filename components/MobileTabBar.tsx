@@ -11,6 +11,7 @@ const TABS = [
   { href: '/research', label: 'Research', icon: '▤' },
   { href: '/stats', label: 'Stats', icon: 'Σ' },
   { href: '/library', label: 'Library', icon: '❒' },
+  { href: '/appraisal', label: 'Appraise', icon: '⚖' },
 ];
 
 export default function MobileTabBar() {
@@ -23,7 +24,7 @@ export default function MobileTabBar() {
       aria-label="Primary"
       className="clay-header clay-bottom-nav sm:hidden fixed inset-x-0 bottom-0 z-40 pb-[env(safe-area-inset-bottom)]"
     >
-      <ul className="grid grid-cols-4 gap-1 px-2 py-1.5">
+      <ul className="grid grid-cols-5 gap-1 px-2 py-1.5">
         {TABS.map((tab) => {
           const active = isActive(tab.href);
           return (

@@ -420,6 +420,7 @@ export default function ResearchPage() {
             <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Research</span>
             <Link href="/stats" className="clay-tab px-3 py-1.5 rounded-lg">Statistics</Link>
             <Link href="/library" className="clay-tab px-3 py-1.5 rounded-lg">Library</Link>
+            <Link href="/appraisal" className="clay-tab px-3 py-1.5 rounded-lg">Appraisal</Link>
           </nav>
         </div>
         <div className="flex gap-4 lg:gap-6 items-center">

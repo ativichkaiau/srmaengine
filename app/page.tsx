@@ -72,6 +72,89 @@ function keywordToRegexSource(word: string): string {
     .replace(/\s+/g, '\\s+');
 }
 
+type BatchRow = {
+  text: string;
+  title: string;
+  decision: string;
+  posHits: string[];
+  negHits: string[];
+  negatedHits: string[];
+};
+
+// Visual language for each verdict — shared by the batch table.
+const VERDICT_STYLE: Record<string, { label: string; cls: string }> = {
+  'INCLUDE / MAYBE': {
+    label: 'Include / Maybe',
+    cls: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25',
+  },
+  UNCLEAR: {
+    label: 'Unclear',
+    cls: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-500/25',
+  },
+  EXCLUDE: {
+    label: 'Exclude',
+    cls: 'bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-500/25',
+  },
+  NO_CRITERIA: {
+    label: 'No criteria',
+    cls: 'bg-neutral-100 dark:bg-white/5 text-neutral-500 dark:text-slate-400 border-neutral-200 dark:border-white/10',
+  },
+};
+
+// Pure verdict for a single abstract. Mirrors handleScan's decision rules
+// exactly (first-occurrence-wins negation) so a given abstract yields the
+// same verdict whether screened one-at-a-time or in a batch.
+function classifyAbstract(
+  text: string,
+  positiveKeywords: string[],
+  negativeKeywords: string[],
+  negationTriggers: string[]
+): Omit<BatchRow, 'text' | 'title'> {
+  const normalizedText = text.replace(/\s+/g, ' ').trim();
+  const rawSentences = normalizedText.match(/[^.!?]+[.!?]+/g) || [normalizedText];
+  const sentences = rawSentences.map((s) => s.trim()).filter(Boolean);
+
+  const isSentenceNegated = (sentence: string) => {
+    const lower = sentence.toLowerCase();
+    return negationTriggers.some((trigger) => lower.includes(trigger));
+  };
+  const buildRegex = (word: string) =>
+    new RegExp(`\\b${keywordToRegexSource(word)}\\b`, 'gi');
+
+  const posSet = new Set<string>();
+  const negFirst = new Map<string, boolean>(); // word → isNegated at first hit
+
+  sentences.forEach((sentence) => {
+    const negated = isSentenceNegated(sentence);
+    positiveKeywords.forEach((word) => {
+      if (buildRegex(word).test(sentence)) posSet.add(word);
+    });
+    negativeKeywords.forEach((word) => {
+      if (buildRegex(word).test(sentence) && !negFirst.has(word)) {
+        negFirst.set(word, negated);
+      }
+    });
+  });
+
+  const negHits = Array.from(negFirst.entries()).filter(([, n]) => !n).map(([w]) => w);
+  const negatedHits = Array.from(negFirst.entries()).filter(([, n]) => n).map(([w]) => w);
+
+  let decision: string;
+  if (positiveKeywords.length === 0 && negativeKeywords.length === 0) {
+    decision = 'NO_CRITERIA';
+  } else if (negHits.length > 0) {
+    decision = 'EXCLUDE';
+  } else if (negatedHits.length > 0) {
+    decision = 'UNCLEAR';
+  } else if (posSet.size > 0) {
+    decision = 'INCLUDE / MAYBE';
+  } else {
+    decision = 'UNCLEAR';
+  }
+
+  return { decision, posHits: Array.from(posSet), negHits, negatedHits };
+}
+
 function extractCandidates(text: string, exclude: Set<string>): string[] {
   const cleaned = text
     .toLowerCase()
@@ -171,6 +254,12 @@ export default function SRMATelemetryPage() {
   const [scan, setScan] = useState<ScanResult | null>(null);
   const [isScanned, setIsScanned] = useState(false);
   const [libSaved, setLibSaved] = useState(false);
+
+  // --- BATCH SCANNING ---
+  const [scanMode, setScanMode] = useState<'single' | 'batch'>('single');
+  const [batchText, setBatchText] = useState('');
+  const [batchRows, setBatchRows] = useState<BatchRow[] | null>(null);
+  const [batchSaved, setBatchSaved] = useState(false);
 
   // Drill-down disclosure tiers.
   const [showSentences, setShowSentences] = useState(false);
@@ -468,6 +557,57 @@ export default function SRMATelemetryPage() {
       decision
     );
     setLibSaved(true);
+  };
+
+  // Split a paste into individual abstracts (blank line or a "---" divider)
+  // and screen each against the current protocol.
+  const runBatch = () => {
+    const chunks = batchText
+      .split(/\n\s*(?:-{3,})\s*\n|\n\s*\n/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const rows: BatchRow[] = chunks.map((text) => {
+      const verdict = classifyAbstract(
+        text,
+        positiveKeywords,
+        negativeKeywords,
+        negationTriggers
+      );
+      const firstSentence =
+        text.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s/)[0] ?? '';
+      const title = firstSentence.slice(0, 120) || text.slice(0, 60) || 'Pasted abstract';
+      return { text, title, ...verdict };
+    });
+    setBatchRows(rows);
+    setBatchSaved(false);
+  };
+
+  // Push every screened abstract (skipping the no-criteria rows) into the library.
+  const saveBatchToLibrary = () => {
+    if (!batchRows) return;
+    const verdictToDecision: Record<string, Decision> = {
+      'INCLUDE / MAYBE': 'include',
+      UNCLEAR: 'maybe',
+      EXCLUDE: 'exclude',
+    };
+    const reviewer = loadReviewer();
+    batchRows.forEach((row) => {
+      if (row.decision === 'NO_CRITERIA') return;
+      const decision = verdictToDecision[row.decision] ?? 'maybe';
+      upsertDecision(
+        { id: recordKey({ title: row.title }), title: row.title, source: 'Scanner (batch)' },
+        reviewer,
+        decision
+      );
+    });
+    setBatchSaved(true);
+  };
+
+  const savableBatch = (batchRows ?? []).filter((r) => r.decision !== 'NO_CRITERIA');
+  const batchTally = {
+    include: (batchRows ?? []).filter((r) => r.decision === 'INCLUDE / MAYBE').length,
+    unclear: (batchRows ?? []).filter((r) => r.decision === 'UNCLEAR').length,
+    exclude: (batchRows ?? []).filter((r) => r.decision === 'EXCLUDE').length,
   };
 
   const getHighlightedText = (text: string) => {
@@ -1001,21 +1141,42 @@ export default function SRMATelemetryPage() {
           <div id="engine" className="intro intro-delay-4 relative clay clay-sheen flex flex-col rounded-[24px] lg:rounded-[32px] p-5 lg:p-8 transition-all duration-700 scroll-mt-24">
 
             {/* Dynamic Protocol Editor Header */}
-            <div className="flex justify-between items-center mb-6 px-1">
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-6 px-1">
               <h2 className="font-bold text-[16px] tracking-tight flex items-center gap-2 text-neutral-900 dark:text-white transition-colors duration-700">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span> Abstract Input
+                <span className="w-2 h-2 rounded-full bg-cyan-400 obs-pulse"></span>
+                {scanMode === 'batch' ? 'Batch Screening' : 'Abstract Input'}
                 <span className="text-[9px] font-black text-cyan-600 dark:text-cyan-300 border border-cyan-500/30 dark:border-cyan-400/30 bg-cyan-50 dark:bg-cyan-400/10 px-1.5 py-0.5 rounded ml-2 uppercase tracking-widest transition-colors hidden sm:inline-block">Auto-Detect</span>
               </h2>
-              <button
-                onClick={() => setIsEditingProtocol(!isEditingProtocol)}
-                className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
-                  isEditingProtocol
-                    ? 'clay-tab-active'
-                    : 'clay-button text-neutral-500 dark:text-slate-400'
-                }`}
-              >
-                {isEditingProtocol ? 'Close Editor' : 'Edit Protocol'}
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Single / Batch mode toggle */}
+                <div className="clay-inset flex rounded-lg p-0.5" role="tablist" aria-label="Scan mode">
+                  {(['single', 'batch'] as const).map((m) => (
+                    <button
+                      key={m}
+                      role="tab"
+                      aria-selected={scanMode === m}
+                      onClick={() => setScanMode(m)}
+                      className={`px-3 py-1.5 text-[11px] font-bold rounded-[7px] transition-all capitalize ${
+                        scanMode === m
+                          ? 'clay-tab-active'
+                          : 'text-neutral-500 dark:text-slate-400 hover:text-neutral-700 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setIsEditingProtocol(!isEditingProtocol)}
+                  className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                    isEditingProtocol
+                      ? 'clay-tab-active'
+                      : 'clay-button text-neutral-500 dark:text-slate-400'
+                  }`}
+                >
+                  {isEditingProtocol ? 'Close Editor' : 'Edit Protocol'}
+                </button>
+              </div>
             </div>
 
             {/* Protocol Editor Panel (manual fallback — starts empty) */}
@@ -1068,7 +1229,8 @@ export default function SRMATelemetryPage() {
               </div>
             )}
 
-            {/* Input Form */}
+            {/* Single-abstract input form */}
+            {scanMode === 'single' && (
             <div className="space-y-4">
               <textarea
                 className="clay-field w-full h-48 p-5 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:outline-none transition-all resize-none custom-scrollbar"
@@ -1206,9 +1368,148 @@ export default function SRMATelemetryPage() {
                 </button>
               </div>
             </div>
+            )}
+
+            {/* Batch screening panel */}
+            {scanMode === 'batch' && (
+              <div className="space-y-4">
+                <div className="clay-soft p-4 rounded-2xl flex items-start gap-3">
+                  <span className="w-1.5 h-1.5 mt-1.5 rounded-full bg-violet-400 obs-pulse shrink-0"></span>
+                  <p className="text-[12px] leading-relaxed text-neutral-600 dark:text-slate-400">
+                    Paste any number of abstracts, separated by a blank line or a line of{' '}
+                    <code className="font-mono text-[11px] px-1 py-0.5 rounded bg-black/5 dark:bg-white/10">---</code>.
+                    Each is screened against the current protocol
+                    {' '}(<span className="text-cyan-600 dark:text-cyan-300 font-bold">{positiveKeywords.length}</span> include ·{' '}
+                    <span className="text-rose-500 dark:text-rose-400 font-bold">{negativeKeywords.length}</span> exclude terms)
+                    {' '}and can be filed to the library in one pass.
+                    {positiveKeywords.length === 0 && negativeKeywords.length === 0 && (
+                      <span className="block mt-1.5 text-yellow-600 dark:text-yellow-400 font-semibold">
+                        No criteria yet — open Edit Protocol to add inclusion / exclusion terms first.
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                <textarea
+                  className="clay-field w-full h-64 p-5 rounded-2xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 leading-relaxed focus:outline-none transition-all resize-none custom-scrollbar"
+                  placeholder={'First abstract text…\n\n---\n\nSecond abstract text…\n\n---\n\nThird abstract text…'}
+                  value={batchText}
+                  onChange={(e) => setBatchText(e.target.value)}
+                />
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      setBatchText('');
+                      setBatchRows(null);
+                      setBatchSaved(false);
+                    }}
+                    className="clay-button px-6 py-3.5 text-neutral-600 dark:text-slate-300 text-sm font-bold rounded-xl active:scale-95"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={runBatch}
+                    disabled={!batchText.trim() || isEditingProtocol}
+                    className="clay-primary flex-1 py-3.5 disabled:cursor-not-allowed text-sm font-bold rounded-xl active:scale-[0.98]"
+                  >
+                    Screen All Abstracts
+                  </button>
+                </div>
+
+                {batchRows && (
+                  <div className="clay-soft p-5 rounded-2xl space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest">
+                        <span className="px-2 py-1 rounded-md border bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25">
+                          {batchTally.include} include
+                        </span>
+                        <span className="px-2 py-1 rounded-md border bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-500/25">
+                          {batchTally.unclear} unclear
+                        </span>
+                        <span className="px-2 py-1 rounded-md border bg-rose-100 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-200 dark:border-rose-500/25">
+                          {batchTally.exclude} exclude
+                        </span>
+                        <span className="px-2 py-1 rounded-md border bg-neutral-100 dark:bg-white/5 text-neutral-500 dark:text-slate-400 border-neutral-200 dark:border-white/10">
+                          {batchRows.length} total
+                        </span>
+                      </div>
+                      <button
+                        onClick={saveBatchToLibrary}
+                        disabled={batchSaved || savableBatch.length === 0}
+                        className="clay-button rounded-lg px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-600 dark:text-slate-300 disabled:opacity-60"
+                      >
+                        {batchSaved
+                          ? `✓ Saved ${savableBatch.length} to library`
+                          : `+ Save all ${savableBatch.length} to library`}
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[12px] border-collapse">
+                        <thead>
+                          <tr className="text-neutral-500 dark:text-slate-400 text-[10px] uppercase tracking-widest">
+                            <th className="text-left px-2 py-1.5 w-8">#</th>
+                            <th className="text-left px-2 py-1.5">Abstract</th>
+                            <th className="text-left px-2 py-1.5 whitespace-nowrap">Verdict</th>
+                            <th className="text-right px-2 py-1.5 whitespace-nowrap">Signals</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batchRows.map((row, i) => {
+                            const style = VERDICT_STYLE[row.decision] ?? VERDICT_STYLE.UNCLEAR;
+                            return (
+                              <tr
+                                key={i}
+                                className="odd:bg-black/[0.02] dark:odd:bg-white/[0.02] align-top border-t border-black/5 dark:border-white/5"
+                              >
+                                <td className="px-2 py-2.5 font-mono text-neutral-400 dark:text-slate-500">{i + 1}</td>
+                                <td className="px-2 py-2.5 text-neutral-700 dark:text-slate-200 leading-snug">
+                                  {row.title.slice(0, 90)}
+                                  {row.title.length > 90 ? '…' : ''}
+                                </td>
+                                <td className="px-2 py-2.5">
+                                  <span
+                                    className={`inline-block px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wide whitespace-nowrap ${style.cls}`}
+                                  >
+                                    {style.label}
+                                  </span>
+                                </td>
+                                <td className="px-2 py-2.5 text-right font-mono text-[11px] whitespace-nowrap space-x-1.5">
+                                  {row.posHits.length > 0 && (
+                                    <span className="text-emerald-600 dark:text-emerald-400" title={row.posHits.join(', ')}>
+                                      +{row.posHits.length}
+                                    </span>
+                                  )}
+                                  {row.negHits.length > 0 && (
+                                    <span className="text-rose-500 dark:text-rose-400" title={row.negHits.join(', ')}>
+                                      −{row.negHits.length}
+                                    </span>
+                                  )}
+                                  {row.negatedHits.length > 0 && (
+                                    <span className="text-yellow-600 dark:text-yellow-400" title={`negated: ${row.negatedHits.join(', ')}`}>
+                                      ~{row.negatedHits.length}
+                                    </span>
+                                  )}
+                                  {row.posHits.length === 0 &&
+                                    row.negHits.length === 0 &&
+                                    row.negatedHits.length === 0 && (
+                                      <span className="text-neutral-400 dark:text-slate-600">—</span>
+                                    )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Results Dashboard — LAYERED DRILL-DOWN */}
-            {isScanned && scan && (
+            {scanMode === 'single' && isScanned && scan && (
               <div className="mt-8 pt-8 border-t border-black/5 dark:border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
 
                 {/* TIER 1 — ABSTRACT-LEVEL VERDICT */}

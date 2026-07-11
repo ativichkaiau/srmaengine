@@ -496,6 +496,48 @@ try:
         theta_re = float((wr * yi).sum() / swr)
         se_re = float(np.sqrt(1.0 / swr))
 
+        # Prediction interval (random effects): where a new study's true effect
+        # may plausibly fall. Uses t_{k-2}; needs at least 3 studies.
+        if k >= 3:
+            t_pi = float(st.t.ppf(0.975, k - 2))
+            pi_half = t_pi * float(np.sqrt(tau2 + se_re ** 2))
+            prediction = {
+                'low': float(theta_re - pi_half),
+                'high': float(theta_re + pi_half),
+            }
+        else:
+            prediction = None
+
+        # Leave-one-out influence: drop each study, recompute the DL pool.
+        def dl_pool(yy, ss):
+            v = ss ** 2
+            w = 1.0 / v
+            swf = float(w.sum())
+            tfe = float((w * yy).sum() / swf)
+            q = float((w * (yy - tfe) ** 2).sum())
+            dff = int(yy.size - 1)
+            c = swf - float((w ** 2).sum()) / swf
+            t2 = float(max(0.0, (q - dff) / c)) if c > 0 else 0.0
+            wrr = 1.0 / (v + t2)
+            swrr = float(wrr.sum())
+            tre = float((wrr * yy).sum() / swrr)
+            sre = float(np.sqrt(1.0 / swrr))
+            i2 = float(max(0.0, (q - dff) / q) * 100.0) if q > 0 else 0.0
+            return tre, sre, i2
+
+        leave_one_out = []
+        if k >= 3:
+            for j in range(k):
+                keep = np.array([i != j for i in range(k)])
+                tre, sre, i2 = dl_pool(yi[keep], sei[keep])
+                leave_one_out.append({
+                    'omitted': idx[j],
+                    'estimate': tre,
+                    'ci_low': tre - z * sre,
+                    'ci_high': tre + z * sre,
+                    'I2': i2,
+                })
+
         def pooled(theta, se):
             zval = theta / se if se > 0 else float('nan')
             return {
@@ -611,6 +653,8 @@ try:
                 'Q': Q, 'df': df, 'p': Q_p, 'I2': I2, 'tau2': tau2,
             },
             'egger': egger,
+            'prediction': prediction,
+            'leave_one_out': leave_one_out,
             'studies': studies,
             'subgroup': subgroup_result,
         }
@@ -822,6 +866,34 @@ export function effectFrom2x2(
   const yi = Math.log(a / n1 / (c / n2));
   const sei = Math.sqrt(1 / a - 1 / n1 + 1 / c - 1 / n2);
   return { yi, sei };
+}
+
+// Continuous outcome → standardized mean difference (Hedges' g) or raw mean
+// difference, with SE, from per-arm mean / SD / n.
+export function effectContinuous(
+  m1: number, sd1: number, n1: number,
+  m2: number, sd2: number, n2: number,
+  measure: 'smd' | 'md'
+): { yi: number; sei: number } | null {
+  if (![m1, sd1, n1, m2, sd2, n2].every(Number.isFinite)) return null;
+  if (n1 < 2 || n2 < 2 || sd1 < 0 || sd2 < 0) return null;
+  if (measure === 'md') {
+    const yi = m1 - m2;
+    const sei = Math.sqrt((sd1 * sd1) / n1 + (sd2 * sd2) / n2);
+    if (!Number.isFinite(sei) || sei <= 0) return null;
+    return { yi, sei };
+  }
+  // SMD (Hedges' g): pooled SD, Cohen's d, small-sample correction J.
+  const dfp = n1 + n2 - 2;
+  const sp = Math.sqrt(((n1 - 1) * sd1 * sd1 + (n2 - 1) * sd2 * sd2) / dfp);
+  if (!Number.isFinite(sp) || sp <= 0) return null;
+  const d = (m1 - m2) / sp;
+  const J = 1 - 3 / (4 * dfp - 1);
+  const g = J * d;
+  const varG = J * J * ((n1 + n2) / (n1 * n2) + (d * d) / (2 * dfp));
+  const sei = Math.sqrt(varG);
+  if (!Number.isFinite(sei) || sei <= 0) return null;
+  return { yi: g, sei };
 }
 
 // Cross-tabulate two categorical columns → contingency table + level labels.

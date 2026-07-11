@@ -6,6 +6,7 @@ import ThemeToggle from '@/components/ThemeToggle';
 import MobileTabBar from '@/components/MobileTabBar';
 import {
   crosstab,
+  effectContinuous,
   effectFrom2x2,
   getPyodide,
   numericColumn,
@@ -530,6 +531,15 @@ function MetaResult({
     note: string;
   };
   const subgroup = (result.subgroup as SubgroupResult) ?? null;
+  const prediction = (result.prediction as { low: number; high: number } | null) ?? null;
+  const loo =
+    (result.leave_one_out as {
+      omitted: number;
+      estimate: number;
+      ci_low: number;
+      ci_high: number;
+      I2: number;
+    }[]) ?? [];
   const labels =
     meta?.labels ?? studies.map((_, i) => `Study ${i + 1}`);
   const disp = (v: number) => (log ? Math.exp(v) : v);
@@ -564,6 +574,12 @@ function MetaResult({
             value={egger.intercept === null ? '—' : fmt(egger.intercept, 3)}
           />
           <StatTile label="Egger p" value={fmtOptionalP(egger.p)} />
+          {prediction && (
+            <StatTile
+              label="95% prediction interval"
+              value={`${fmt(disp(prediction.low), 3)} to ${fmt(disp(prediction.high), 3)}`}
+            />
+          )}
         </div>
       </div>
 
@@ -659,6 +675,38 @@ function MetaResult({
           </table>
         </div>
       </div>
+
+      {loo.length > 0 && (
+        <div className="clay-soft p-5 rounded-2xl overflow-x-auto">
+          <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
+            Leave-one-out (influence)
+          </div>
+          <table className="w-full text-[12px] font-mono border-collapse">
+            <thead>
+              <tr className="text-neutral-500 dark:text-slate-400">
+                <th className="text-left px-2 py-1">Omitting</th>
+                <th className="text-right px-2 py-1">Pooled (random)</th>
+                <th className="text-right px-2 py-1">95% CI</th>
+                <th className="text-right px-2 py-1">I²</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loo.map((l, i) => (
+                <tr key={i} className="odd:bg-black/[0.02] dark:odd:bg-white/[0.02]">
+                  <td className="px-2 py-1 text-neutral-700 dark:text-slate-200 whitespace-nowrap">
+                    {(labels[i] ?? `Study ${i + 1}`).slice(0, 22)}
+                  </td>
+                  <td className="px-2 py-1 text-right">{fmt(disp(l.estimate), 3)}</td>
+                  <td className="px-2 py-1 text-right text-neutral-500 dark:text-slate-400">
+                    [{fmt(disp(l.ci_low), 3)}, {fmt(disp(l.ci_high), 3)}]
+                  </td>
+                  <td className="px-2 py-1 text-right">{fmt(l.I2, 1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -754,8 +802,9 @@ export default function StatsPage() {
     candidates.includes(sel) ? sel : candidates[0] ?? -1;
 
   // --- Meta-analysis inputs ---
-  const [metaKind, setMetaKind] = useState<'effect' | 'events'>('effect');
+  const [metaKind, setMetaKind] = useState<'effect' | 'events' | 'continuous'>('effect');
   const [metaMeasure, setMetaMeasure] = useState<'or' | 'rr'>('or');
+  const [metaContMeasure, setMetaContMeasure] = useState<'smd' | 'md'>('smd');
   const [metaText, setMetaText] = useState('');
   const [metaStudyCol, setMetaStudyCol] = useState(0);
   const [metaEffectCol, setMetaEffectCol] = useState(1);
@@ -766,6 +815,13 @@ export default function StatsPage() {
   const [metaNT, setMetaNT] = useState(2);
   const [metaEvtC, setMetaEvtC] = useState(3);
   const [metaNC, setMetaNC] = useState(4);
+  // Continuous columns: mean/SD/n per arm.
+  const [metaM1, setMetaM1] = useState(1);
+  const [metaSd1, setMetaSd1] = useState(2);
+  const [metaN1, setMetaN1] = useState(3);
+  const [metaM2, setMetaM2] = useState(4);
+  const [metaSd2, setMetaSd2] = useState(5);
+  const [metaN2, setMetaN2] = useState(6);
   const [metaLog, setMetaLog] = useState(false);
   // Study labels + log flag stashed for the result renderer (labels aren't
   // carried through the Python interchange).
@@ -982,6 +1038,23 @@ export default function StatsPage() {
                   subCol >= 0 ? (row[subCol] ?? '').trim() : ''
                 );
               });
+            } else if (metaKind === 'continuous') {
+              const cols = [metaM1, metaSd1, metaN1, metaM2, metaSd2, metaN2].map(
+                (c) => resolve(c, numericCols)
+              );
+              if (cols.some((c) => c < 0))
+                throw new Error('Pick the six mean / SD / n columns.');
+              dataset.rows.forEach((row) => {
+                const [m1, s1, n1, m2, s2, n2] = cols.map((c) => Number(row[c]));
+                const es = effectContinuous(m1, s1, n1, m2, s2, n2, metaContMeasure);
+                if (!es) return;
+                pushStudy(
+                  (sCol >= 0 ? (row[sCol] ?? '').trim() : '') || `Study ${yi.length + 1}`,
+                  es.yi,
+                  es.sei,
+                  subCol >= 0 ? (row[subCol] ?? '').trim() : ''
+                );
+              });
             } else {
               const eCol = resolve(metaEffectCol, numericCols);
               const seCol = resolve(metaSeCol, numericCols);
@@ -1017,6 +1090,15 @@ export default function StatsPage() {
                   );
                   if (!es) return;
                   pushStudy(parts[0], es.yi, es.sei, parts[5] ?? '');
+                } else if (metaKind === 'continuous') {
+                  // label, m1, sd1, n1, m2, sd2, n2 [, subgroup]
+                  if (parts.length < 7) return;
+                  const nums = parts.slice(1, 7).map(Number);
+                  const es = effectContinuous(
+                    nums[0], nums[1], nums[2], nums[3], nums[4], nums[5], metaContMeasure
+                  );
+                  if (!es) return;
+                  pushStudy(parts[0], es.yi, es.sei, parts[7] ?? '');
                 } else {
                   // label, effect, se [, subgroup]
                   if (parts.length < 3) {
@@ -1046,7 +1128,10 @@ export default function StatsPage() {
             );
           payload = { yi, sei };
           if (anySub) (payload as Record<string, unknown>).subgroups = subs;
-          setMetaMeta({ labels, log: metaKind === 'events' ? true : metaLog });
+          setMetaMeta({
+            labels,
+            log: metaKind === 'events' ? true : metaKind === 'continuous' ? false : metaLog,
+          });
           break;
         }
       }
@@ -1098,6 +1183,18 @@ export default function StatsPage() {
             'Trial D, 5, 60, 6, 58, Children',
             'Trial E, 9, 90, 14, 88, Children',
             'Trial F, 15, 120, 18, 118, Children',
+          ].join('\n')
+        );
+      } else if (metaKind === 'continuous') {
+        // Six trials: mean, SD, n per arm, with a subgroup.
+        setMetaText(
+          [
+            'Trial A, 5.1, 1.2, 40, 6.0, 1.3, 42, Adults',
+            'Trial B, 4.8, 1.0, 35, 5.6, 1.1, 33, Adults',
+            'Trial C, 5.4, 1.4, 55, 5.9, 1.5, 54, Adults',
+            'Trial D, 3.2, 0.9, 30, 3.8, 1.0, 29, Children',
+            'Trial E, 4.0, 1.1, 45, 4.7, 1.2, 44, Children',
+            'Trial F, 4.5, 1.0, 60, 5.1, 1.1, 58, Children',
           ].join('\n')
         );
       } else {
@@ -1644,7 +1741,8 @@ export default function StatsPage() {
                       [
                         ['effect', 'Effect + SE'],
                         ['events', 'Event counts (2×2)'],
-                      ] as ['effect' | 'events', string][]
+                        ['continuous', 'Continuous (mean±SD)'],
+                      ] as ['effect' | 'events' | 'continuous', string][]
                     ).map(([kind, lbl]) => (
                       <button
                         key={kind}
@@ -1678,6 +1776,27 @@ export default function StatsPage() {
                       ))}
                     </div>
                   )}
+                  {metaKind === 'continuous' && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400">Measure</label>
+                      {(
+                        [
+                          ['smd', "SMD (Hedges' g)"],
+                          ['md', 'Mean difference'],
+                        ] as ['smd' | 'md', string][]
+                      ).map(([m, lbl]) => (
+                        <button
+                          key={m}
+                          onClick={() => setMetaContMeasure(m)}
+                          className={`px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all ${
+                            metaContMeasure === m ? 'clay-tab-active' : 'clay-button text-neutral-400 dark:text-slate-500'
+                          }`}
+                        >
+                          {lbl}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {inputSource === 'dataset' && hasData ? (
@@ -1695,6 +1814,15 @@ export default function StatsPage() {
                         <ColumnSelect label="Total (treatment)" value={resolve(metaNT, numericCols)} onChange={setMetaNT} options={numericCols} dataset={dataset} accent="text-cyan-600 dark:text-cyan-300" />
                         <ColumnSelect label="Events (control)" value={resolve(metaEvtC, numericCols)} onChange={setMetaEvtC} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
                         <ColumnSelect label="Total (control)" value={resolve(metaNC, numericCols)} onChange={setMetaNC} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
+                      </>
+                    ) : metaKind === 'continuous' ? (
+                      <>
+                        <ColumnSelect label="Mean (treatment)" value={resolve(metaM1, numericCols)} onChange={setMetaM1} options={numericCols} dataset={dataset} accent="text-cyan-600 dark:text-cyan-300" />
+                        <ColumnSelect label="SD (treatment)" value={resolve(metaSd1, numericCols)} onChange={setMetaSd1} options={numericCols} dataset={dataset} accent="text-cyan-600 dark:text-cyan-300" />
+                        <ColumnSelect label="n (treatment)" value={resolve(metaN1, numericCols)} onChange={setMetaN1} options={numericCols} dataset={dataset} accent="text-cyan-600 dark:text-cyan-300" />
+                        <ColumnSelect label="Mean (control)" value={resolve(metaM2, numericCols)} onChange={setMetaM2} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
+                        <ColumnSelect label="SD (control)" value={resolve(metaSd2, numericCols)} onChange={setMetaSd2} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
+                        <ColumnSelect label="n (control)" value={resolve(metaN2, numericCols)} onChange={setMetaN2} options={numericCols} dataset={dataset} accent="text-violet-600 dark:text-violet-300" />
                       </>
                     ) : (
                       <>
@@ -1715,6 +1843,8 @@ export default function StatsPage() {
                     <label className="block text-[11px] font-bold uppercase tracking-widest text-neutral-500 dark:text-slate-400 mb-2">
                       {metaKind === 'events'
                         ? 'One study per line: label, events(T), n(T), events(C), n(C) [, subgroup]'
+                        : metaKind === 'continuous'
+                        ? 'One study per line: label, mean(T), SD(T), n(T), mean(C), SD(C), n(C) [, subgroup]'
                         : 'One study per line: label, effect, standard error [, subgroup]'}
                     </label>
                     <textarea
@@ -1723,6 +1853,8 @@ export default function StatsPage() {
                       placeholder={
                         metaKind === 'events'
                           ? 'Trial A, 12, 100, 20, 100\nTrial B, 8, 80, 15, 82'
+                          : metaKind === 'continuous'
+                          ? 'Trial A, 5.1, 1.2, 40, 6.0, 1.3, 42\nTrial B, 4.8, 1.0, 35, 5.6, 1.1, 33'
                           : 'Trial A, -0.35, 0.18\nTrial B, -0.52, 0.25'
                       }
                       className="clay-field w-full h-32 p-4 rounded-xl text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none resize-none custom-scrollbar"

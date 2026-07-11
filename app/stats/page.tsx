@@ -81,6 +81,12 @@ const MODES: { id: StatMode; label: string; short: string; desc: string }[] = [
     short: 'META',
     desc: 'Pool study effect sizes; forest & funnel plots with heterogeneity.',
   },
+  {
+    id: 'diagnostic',
+    label: 'Diagnostic',
+    short: 'DIAG',
+    desc: 'Sensitivity, specificity, predictive values, likelihood ratios from a 2×2.',
+  },
 ];
 
 const fmt = (n: number, digits = 4): string => {
@@ -143,6 +149,112 @@ function AssumptionPanel({ flags }: { flags: unknown }) {
           inspect study design, distributions, and plots before inference.
         </p>
       )}
+    </div>
+  );
+}
+
+// The rank-based counterpart to a parametric test (the "which test when"
+// alternative), shown alongside so a normality flag has an immediate fallback.
+function NonParametricLine({
+  np,
+}: {
+  np: { test: string; statistic: number; p: number; df?: number } | null | undefined;
+}) {
+  if (!np) return null;
+  return (
+    <div className="clay-soft rounded-xl p-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="text-[12px] text-neutral-700 dark:text-slate-300">
+        <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400 mr-2">
+          Non-parametric check
+        </span>
+        <span className="font-bold">{np.test}</span>
+        <span className="font-mono text-neutral-500 dark:text-slate-400 ml-2">
+          {np.df !== undefined
+            ? `H = ${fmt(np.statistic, 2)}, df = ${np.df}`
+            : `stat = ${fmt(np.statistic, 2)}`}{' '}
+          · p = {fmtP(np.p)}
+        </span>
+      </div>
+      <PChip p={np.p} />
+    </div>
+  );
+}
+
+// Diagnostic-accuracy readout — sensitivity/specificity (with Wilson CIs),
+// predictive values, likelihood ratios (Jaeschke bands), and the Bayes /
+// post-test probability chain, matching the diagnostic-test lecture.
+function DiagnosticResult({ result }: { result: Record<string, unknown> }) {
+  const c = result.counts as { tp: number; fp: number; fn: number; tn: number; n: number };
+  const W = (k: string) =>
+    result[k] as { est: number; low: number; high: number } | null;
+  const num = (k: string) =>
+    typeof result[k] === 'number' ? (result[k] as number) : null;
+  const pct = (x: number | null | undefined, d = 1) =>
+    x == null || !Number.isFinite(x) ? '—' : `${(x * 100).toFixed(d)}%`;
+  const wilsonStr = (w: { est: number; low: number; high: number } | null) =>
+    w ? `${pct(w.est)} [${pct(w.low)}, ${pct(w.high)}]` : '—';
+  const fmtLR = (lr: number | null) =>
+    lr == null || !Number.isFinite(lr) ? '—' : lr.toFixed(2);
+  const lrBand = (lr: number | null, positive: boolean) => {
+    if (lr == null || !Number.isFinite(lr)) return '—';
+    if (positive) {
+      if (lr > 10) return 'large';
+      if (lr >= 5) return 'moderate';
+      if (lr >= 2) return 'small';
+      return 'minimal';
+    }
+    if (lr < 0.1) return 'large';
+    if (lr <= 0.2) return 'moderate';
+    if (lr <= 0.5) return 'small';
+    return 'minimal';
+  };
+  const lrPos = num('lr_pos');
+  const lrNeg = num('lr_neg');
+
+  return (
+    <div className="space-y-4">
+      <div className="clay p-5 rounded-2xl space-y-4">
+        <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+          Diagnostic accuracy · N = {c.n} · prevalence {pct(num('prevalence'))}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <StatTile label="Sensitivity" value={wilsonStr(W('sensitivity'))} accent="text-cyan-600 dark:text-cyan-300" />
+          <StatTile label="Specificity" value={wilsonStr(W('specificity'))} accent="text-cyan-600 dark:text-cyan-300" />
+          <StatTile label="PPV" value={wilsonStr(W('ppv'))} />
+          <StatTile label="NPV" value={wilsonStr(W('npv'))} />
+          <StatTile label="Accuracy" value={pct(num('accuracy'))} />
+          <StatTile label="False-negative rate" value={pct(num('fnr'))} />
+          <StatTile label="LR+" value={fmtLR(lrPos)} />
+          <StatTile label="LR−" value={fmtLR(lrNeg)} />
+        </div>
+        <div className="clay-soft rounded-xl p-4 text-[12px] text-neutral-600 dark:text-slate-300 space-y-1.5">
+          <div className="text-[10px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+            Likelihood-ratio strength (Jaeschke)
+          </div>
+          <div>
+            LR+ {fmtLR(lrPos)} → <span className="font-bold">{lrBand(lrPos, true)}</span> shift toward disease ·
+            LR− {fmtLR(lrNeg)} → <span className="font-bold">{lrBand(lrNeg, false)}</span> shift away.
+          </div>
+          <div className="text-neutral-400 dark:text-slate-500">
+            SNout — a sensitive test, when negative, rules out · SPin — a specific test, when positive, rules in.
+            (Sensitivity = true-positive proportion.)
+          </div>
+        </div>
+      </div>
+
+      <div className="clay p-5 rounded-2xl space-y-3">
+        <div className="text-[11px] font-black uppercase tracking-widest text-neutral-500 dark:text-slate-400">
+          Post-test probability (Bayes)
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <StatTile label="Pre-test (prevalence)" value={pct(num('prevalence'))} />
+          <StatTile label="After a positive test" value={pct(num('post_test_prob_pos'))} accent="text-emerald-600 dark:text-emerald-300" />
+          <StatTile label="After a negative test" value={pct(num('post_test_prob_neg'))} accent="text-rose-500 dark:text-rose-400" />
+        </div>
+        <p className="text-[11px] text-neutral-400 dark:text-slate-500">
+          post-test odds = pre-test odds × LR; post-test probability = odds ÷ (1 + odds).
+        </p>
+      </div>
     </div>
   );
 }
@@ -518,7 +630,7 @@ function MetaResult({
   meta,
 }: {
   result: Record<string, unknown>;
-  meta: { labels: string[]; log: boolean; kind?: string } | null;
+  meta: { labels: string[]; log: boolean; kind?: string; measure?: string } | null;
 }) {
   const log = meta?.log ?? false;
   const studies = (result.studies as MetaStudy[]) ?? [];
@@ -551,6 +663,25 @@ function MetaResult({
   const totalEvents =
     (result.total_events as { treatment: number; control: number } | null) ?? null;
   const kind = meta?.kind ?? 'effect';
+  // Number needed to treat / harm from the pooled risk difference (NNT = 1/|RD|).
+  // Benefit (RD<0) rounds up, harm (RD>0) rounds down, per the course.
+  let nntTile: { label: string; value: string } | null = null;
+  if (meta?.measure === 'rd' && random) {
+    const rd = random.estimate;
+    const absrd = Math.abs(rd);
+    if (absrd < 1e-9) {
+      nntTile = { label: 'NNT', value: '∞ (no difference)' };
+    } else {
+      const beneficial = rd < 0;
+      const n = 1 / absrd;
+      const rounded = beneficial ? Math.ceil(n) : Math.floor(n);
+      const crosses = random.ci_low < 0 && random.ci_high > 0;
+      nntTile = {
+        label: beneficial ? 'NNT (benefit)' : 'NNH (harm)',
+        value: crosses ? `${rounded} · CI crosses 0` : `${rounded}`,
+      };
+    }
+  }
   const labels =
     meta?.labels ?? studies.map((_, i) => `Study ${i + 1}`);
   const disp = (v: number) => (log ? Math.exp(v) : v);
@@ -594,6 +725,13 @@ function MetaResult({
             <StatTile
               label="95% prediction interval"
               value={`${fmt(disp(prediction.low), 3)} to ${fmt(disp(prediction.high), 3)}`}
+            />
+          )}
+          {nntTile && (
+            <StatTile
+              label={nntTile.label}
+              value={nntTile.value}
+              accent="text-cyan-600 dark:text-cyan-300"
             />
           )}
         </div>
@@ -837,7 +975,13 @@ export default function StatsPage() {
 
   // --- Meta-analysis inputs ---
   const [metaKind, setMetaKind] = useState<'effect' | 'events' | 'continuous'>('effect');
-  const [metaMeasure, setMetaMeasure] = useState<'or' | 'rr'>('or');
+  const [metaMeasure, setMetaMeasure] = useState<'or' | 'rr' | 'rd'>('or');
+
+  // Diagnostic 2×2 (index test × reference standard): TP / FP / FN / TN.
+  const [diagTP, setDiagTP] = useState('');
+  const [diagFP, setDiagFP] = useState('');
+  const [diagFN, setDiagFN] = useState('');
+  const [diagTN, setDiagTN] = useState('');
   const [metaContMeasure, setMetaContMeasure] = useState<'smd' | 'md'>('smd');
   const [metaText, setMetaText] = useState('');
   const [metaStudyCol, setMetaStudyCol] = useState(0);
@@ -859,7 +1003,7 @@ export default function StatsPage() {
   const [metaLog, setMetaLog] = useState(false);
   // Study labels + log flag stashed for the result renderer (labels aren't
   // carried through the Python interchange).
-  const [metaMeta, setMetaMeta] = useState<{ labels: string[]; log: boolean; kind?: string } | null>(null);
+  const [metaMeta, setMetaMeta] = useState<{ labels: string[]; log: boolean; kind?: string; measure?: string } | null>(null);
 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
@@ -1181,9 +1325,26 @@ export default function StatsPage() {
           }
           setMetaMeta({
             labels,
-            log: metaKind === 'events' ? true : metaKind === 'continuous' ? false : metaLog,
+            // Ratio measures (OR/RR) display on the log scale; risk difference
+            // and continuous effects are natural-scale (null line at 0).
+            log:
+              metaKind === 'events'
+                ? metaMeasure !== 'rd'
+                : metaKind === 'continuous'
+                ? false
+                : metaLog,
             kind: metaKind,
+            measure: metaKind === 'events' ? metaMeasure : undefined,
           });
+          break;
+        }
+        case 'diagnostic': {
+          const nums = [diagTP, diagFP, diagFN, diagTN].map((v) => Number(v));
+          if (nums.some((n) => !Number.isFinite(n) || n < 0))
+            throw new Error('Enter four non-negative counts: TP, FP, FN, TN.');
+          if (nums.reduce((a, b) => a + b, 0) <= 0)
+            throw new Error('The 2×2 table is empty.');
+          payload = { tp: nums[0], fp: nums[1], fn: nums[2], tn: nums[3] };
           break;
         }
       }
@@ -1263,6 +1424,13 @@ export default function StatsPage() {
         );
         setMetaLog(true);
       }
+    },
+    diagnostic: () => {
+      // Course worked example (headache → intracranial injury on CT).
+      setDiagTP('49');
+      setDiagFP('328');
+      setDiagFN('8');
+      setDiagTN('779');
     },
   };
 
@@ -1815,7 +1983,8 @@ export default function StatsPage() {
                         [
                           ['or', 'Odds ratio'],
                           ['rr', 'Risk ratio'],
-                        ] as ['or' | 'rr', string][]
+                          ['rd', 'Risk difference'],
+                        ] as ['or' | 'rr' | 'rd', string][]
                       ).map(([m, lbl]) => (
                         <button
                           key={m}
@@ -1928,6 +2097,62 @@ export default function StatsPage() {
               </div>
             )}
 
+            {mode === 'diagnostic' && (
+              <div className="space-y-3">
+                <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-slate-400">
+                  Enter the 2×2 of index test vs reference standard. Rows = test result,
+                  columns = disease status (a = TP, b = FP, c = FN, d = TN).
+                </p>
+                <div className="grid grid-cols-[minmax(0,auto)_1fr_1fr] gap-2 items-center max-w-md">
+                  <div></div>
+                  <div className="text-center text-[11px] font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
+                    Disease +
+                  </div>
+                  <div className="text-center text-[11px] font-black uppercase tracking-wide text-rose-500 dark:text-rose-400">
+                    Disease −
+                  </div>
+                  <div className="text-[11px] font-bold text-neutral-600 dark:text-slate-300 pr-2 whitespace-nowrap">
+                    Test +
+                  </div>
+                  {(
+                    [
+                      [diagTP, setDiagTP, 'TP'],
+                      [diagFP, setDiagFP, 'FP'],
+                    ] as [string, (v: string) => void, string][]
+                  ).map(([v, set, ph]) => (
+                    <input
+                      key={ph}
+                      type="number"
+                      inputMode="numeric"
+                      value={v}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder={ph}
+                      className="clay-field px-3 py-2 rounded-lg text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none w-full"
+                    />
+                  ))}
+                  <div className="text-[11px] font-bold text-neutral-600 dark:text-slate-300 pr-2 whitespace-nowrap">
+                    Test −
+                  </div>
+                  {(
+                    [
+                      [diagFN, setDiagFN, 'FN'],
+                      [diagTN, setDiagTN, 'TN'],
+                    ] as [string, (v: string) => void, string][]
+                  ).map(([v, set, ph]) => (
+                    <input
+                      key={ph}
+                      type="number"
+                      inputMode="numeric"
+                      value={v}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder={ph}
+                      className="clay-field px-3 py-2 rounded-lg text-[13px] font-mono text-neutral-700 dark:text-slate-200 focus:outline-none w-full"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 onClick={handleRun}
@@ -1995,6 +2220,7 @@ export default function StatsPage() {
                       />
                     </div>
                     <AssumptionPanel flags={result.assumption_flags} />
+                    <NonParametricLine np={result.nonparametric as { test: string; statistic: number; p: number } | null} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <DescriptiveCard
@@ -2050,6 +2276,7 @@ export default function StatsPage() {
                       />
                     </div>
                     <AssumptionPanel flags={result.assumption_flags} />
+                    <NonParametricLine np={result.nonparametric as { test: string; statistic: number; p: number; df?: number } | null} />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {(result.groups as Record<string, unknown>[]).map(
@@ -2100,6 +2327,12 @@ export default function StatsPage() {
                         1
                       )}%)`}
                     />
+                    {result.fisher != null && (
+                      <StatTile
+                        label="Fisher's exact p"
+                        value={fmtOptionalP((result.fisher as { p: number }).p)}
+                      />
+                    )}
                   </div>
                   <AssumptionPanel flags={result.assumption_flags} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
@@ -2216,6 +2449,10 @@ export default function StatsPage() {
 
               {mode === 'meta' && !!result.k && (
                 <MetaResult result={result} meta={metaMeta} />
+              )}
+
+              {mode === 'diagnostic' && !!result.counts && (
+                <DiagnosticResult result={result} />
               )}
 
               {/* AI Interpretation */}

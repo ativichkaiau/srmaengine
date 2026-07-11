@@ -69,7 +69,8 @@ export type StatMode =
   | 'chi2'
   | 'correlation'
   | 'regression'
-  | 'meta';
+  | 'meta'
+  | 'diagnostic';
 
 export type StatPayload = Record<string, unknown>;
 
@@ -254,8 +255,29 @@ try:
         critical = float(st.t.ppf(0.975, df))
         ci_low = mean_diff - critical * se_diff
         ci_high = mean_diff + critical * se_diff
+        # Rank-based non-parametric counterpart — the "which test when" alternative
+        # the course teaches when the normality assumption is in doubt.
+        nonparam = None
+        try:
+            if paired:
+                wr = st.wilcoxon(g1, g2)
+                nonparam = {
+                    'test': 'Wilcoxon signed-rank',
+                    'statistic': float(wr.statistic),
+                    'p': float(wr.pvalue),
+                }
+            else:
+                mw = st.mannwhitneyu(g1, g2, alternative='two-sided')
+                nonparam = {
+                    'test': 'Mann–Whitney U',
+                    'statistic': float(mw.statistic),
+                    'p': float(mw.pvalue),
+                }
+        except Exception:
+            nonparam = None
         result = {
             'test': test_label,
+            'nonparametric': nonparam,
             't': float(res.statistic),
             'p': float(res.pvalue),
             'df': float(df),
@@ -307,8 +329,21 @@ try:
             flags.append(
                 'At least one group departs from normality; inspect residuals and consider a Kruskal-Wallis sensitivity analysis.'
             )
+        # Kruskal–Wallis — the non-parametric counterpart to one-way ANOVA.
+        nonparam = None
+        try:
+            kw = st.kruskal(*groups)
+            nonparam = {
+                'test': 'Kruskal–Wallis H',
+                'statistic': float(kw.statistic),
+                'p': float(kw.pvalue),
+                'df': len(groups) - 1,
+            }
+        except Exception:
+            nonparam = None
         result = {
             'test': 'One-way ANOVA',
+            'nonparametric': nonparam,
             'F': float(res.statistic),
             'p': float(res.pvalue),
             'df_between': df_between,
@@ -345,10 +380,23 @@ try:
             flags.append(
                 'More than 20% of expected cell counts are below 5; consider exact or Monte Carlo methods.'
             )
+        # Fisher's exact — the course's "exact probability test" for a small
+        # 2x2 (use when an expected cell count < 5). Only defined for 2x2.
+        fisher = None
+        if observed.shape == (2, 2):
+            try:
+                odr, fp = st.fisher_exact(observed)
+                fisher = {
+                    'odds_ratio': float(odr) if np.isfinite(odr) else None,
+                    'p': float(fp),
+                }
+            except Exception:
+                fisher = None
         result = {
             'test': 'Chi-square test of independence',
             'chi2': float(chi2),
             'p': float(p),
+            'fisher': fisher,
             'df': int(dof),
             'cramer_v': cramer_v,
             'effect_magnitude': association_effect_label(cramer_v),
@@ -493,7 +541,7 @@ try:
         total_events = None
         counts = data.get('counts')
         measure = data.get('measure')
-        if counts is not None and measure in ('or', 'rr'):
+        if counts is not None and measure in ('or', 'rr', 'rd'):
             ca = np.asarray(counts['a'], dtype=float)[mask]
             cn1 = np.asarray(counts['n1'], dtype=float)[mask]
             cc = np.asarray(counts['c'], dtype=float)[mask]
@@ -515,7 +563,7 @@ try:
                               + float((P * S + Qc * R).sum()) / (2 * sumR * sumS)
                               + float((Qc * S).sum()) / (2 * sumS ** 2))
                     mh_se = float(np.sqrt(var_ln)) if var_ln > 0 else None
-            else:
+            elif measure == 'rr':
                 num = (ca * cn2 / cN)[good]
                 den = (cc * cn1 / cN)[good]
                 sumnum = float(num.sum()); sumden = float(den.sum())
@@ -523,6 +571,8 @@ try:
                     mh_ln = float(np.log(sumnum / sumden))
                     var_ln = float((((cn1 * cn2 * (ca + cc) - ca * cc * cN) / cN ** 2)[good]).sum()) / (sumnum * sumden)
                     mh_se = float(np.sqrt(var_ln)) if var_ln > 0 else None
+            # Risk difference pools with inverse variance (natural scale); no M-H
+            # here, so total events are recorded but mh_ln stays None.
 
         # Heterogeneity — Cochran's Q centred on the M-H estimate when available
         # (RevMan convention for dichotomous data), otherwise the IV mean.
@@ -714,6 +764,69 @@ try:
             'subgroup': subgroup_result,
         }
 
+    elif mode == 'diagnostic':
+        # Diagnostic accuracy from a 2x2 (index test x reference standard).
+        # Orientation per the course: rows = index test (+/-), columns =
+        # disease (present/absent). a=TP, b=FP, c=FN, d=TN.
+        tp = float(data['tp']); fp = float(data['fp'])
+        fn = float(data['fn']); tn = float(data['tn'])
+        if min(tp, fp, fn, tn) < 0:
+            raise ValueError('Counts cannot be negative.')
+        N = tp + fp + fn + tn
+        if N <= 0:
+            raise ValueError('Enter the 2x2 counts (TP, FP, FN, TN).')
+
+        def wilson(k, n):
+            # Wilson score 95% CI for a proportion (robust near 0/1).
+            if n <= 0:
+                return None
+            zc = 1.959963984540054
+            p = k / n
+            denom = 1.0 + zc * zc / n
+            center = (p + zc * zc / (2 * n)) / denom
+            half = (zc * np.sqrt(p * (1 - p) / n + zc * zc / (4 * n * n))) / denom
+            return {'est': float(p), 'low': float(max(0.0, center - half)),
+                    'high': float(min(1.0, center + half))}
+
+        def safe_div(a, b):
+            return float(a / b) if b > 0 else None
+
+        sens = safe_div(tp, tp + fn)
+        spec = safe_div(tn, fp + tn)
+        ppv = safe_div(tp, tp + fp)
+        npv = safe_div(tn, fn + tn)
+        prevalence = safe_div(tp + fn, N)
+        accuracy = safe_div(tp + tn, N)
+        lr_pos = safe_div(sens, (1 - spec)) if (sens is not None and spec is not None and spec < 1) else None
+        lr_neg = safe_div((1 - sens), spec) if (sens is not None and spec is not None and spec > 0) else None
+
+        pre_odds = safe_div(prevalence, (1 - prevalence)) if (prevalence is not None and prevalence < 1) else None
+        def post_prob(lr):
+            if pre_odds is None or lr is None:
+                return None
+            po = pre_odds * lr
+            return float(po / (1 + po))
+        post_pos = post_prob(lr_pos)
+        post_neg = post_prob(lr_neg)
+
+        result = {
+            'test': 'Diagnostic accuracy (2x2)',
+            'counts': {'tp': tp, 'fp': fp, 'fn': fn, 'tn': tn, 'n': N},
+            'sensitivity': wilson(tp, tp + fn),
+            'specificity': wilson(tn, fp + tn),
+            'ppv': wilson(tp, tp + fp),
+            'npv': wilson(tn, fn + tn),
+            'prevalence': prevalence,
+            'accuracy': accuracy,
+            'fnr': (1 - sens) if sens is not None else None,
+            'fpr': (1 - spec) if spec is not None else None,
+            'lr_pos': lr_pos,
+            'lr_neg': lr_neg,
+            'pre_test_odds': pre_odds,
+            'post_test_prob_pos': post_pos,
+            'post_test_prob_neg': post_neg,
+        }
+
     else:
         result = {'error': f'unknown mode: {mode}'}
 except Exception as e:
@@ -896,10 +1009,21 @@ export function effectFrom2x2(
   nT: number, // total, treatment
   eC: number, // events, control
   nC: number, // total, control
-  measure: 'or' | 'rr'
+  measure: 'or' | 'rr' | 'rd'
 ): { yi: number; sei: number } | null {
   if (![eT, nT, eC, nC].every(Number.isFinite)) return null;
   if (nT <= 0 || nC <= 0) return null;
+  // Risk difference works on the natural scale (no log, no continuity
+  // correction): RD = p_T − p_C, Var = p_T(1−p_T)/n_T + p_C(1−p_C)/n_C.
+  if (measure === 'rd') {
+    if (eT < 0 || eC < 0 || eT > nT || eC > nC) return null;
+    const pT = eT / nT;
+    const pC = eC / nC;
+    const yi = pT - pC;
+    const sei = Math.sqrt((pT * (1 - pT)) / nT + (pC * (1 - pC)) / nC);
+    if (!Number.isFinite(sei) || sei <= 0) return null;
+    return { yi, sei };
+  }
   let a = eT;
   let b = nT - eT;
   let c = eC;

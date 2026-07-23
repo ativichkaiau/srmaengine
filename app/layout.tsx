@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VESTRIPPN3.0 // Systematic Review Workspace",
+  title: "VESTRIPPN // Systematic Review Workspace",
   description:
-    "VESTRIPPN3.0 is a systematic-review workspace for abstract screening, literature discovery, and statistical analysis.",
+    "VESTRIPPN is a systematic-review workspace for abstract screening, literature discovery, and statistical analysis.",
 };
 
 export default function RootLayout({

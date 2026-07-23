@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ThemeToggle from '@/components/ThemeToggle';
 import MobileTabBar from '@/components/MobileTabBar';
 import {
@@ -1460,14 +1461,11 @@ export default function StatsPage() {
         <div className="flex items-center gap-4 lg:gap-8">
           <Link
             href="/"
-            aria-label="VESTRIPPN3.0 home"
-            className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity"
+            aria-label="VESTRIPPN home"
+            className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-2.5 hover:opacity-80 transition-opacity"
           >
-            <div className="brand-mark w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">V</div>
-            <div className="flex items-baseline" aria-label="VESTRIPPN3.0">
-              <span>VESTRIPPN</span>
-              <span className="brand-version">3.0</span>
-            </div>
+            <Image src="/logo.png" alt="VESTRIPPN logo" width={40} height={40} className="w-10 h-10 object-contain" priority />
+            <span>VESTRIPPN</span>
           </Link>
           <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
             <Link
@@ -1500,7 +1498,7 @@ export default function StatsPage() {
           {/* HERO */}
           <section className="flex flex-col items-center text-center pt-6 sm:pt-8 pb-2">
             <h1 className="font-black tracking-tighter leading-none mb-3 text-[24px] sm:text-[32px] lg:text-[40px] flex items-center gap-3 flex-wrap justify-center">
-              <span className="text-neutral-900 dark:text-white leading-none">VESTRIPPN3.0</span>
+              <span className="text-neutral-900 dark:text-white leading-none">VESTRIPPN</span>
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 via-indigo-500 to-violet-500 dark:from-cyan-300 dark:via-indigo-300 dark:to-violet-300">
                 Statistical Engine
               </span>

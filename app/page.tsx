@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ThemeToggle from '../components/ThemeToggle';
 import MobileTabBar from '../components/MobileTabBar';
 import {
@@ -221,7 +222,7 @@ const INTRO_SCENES: IntroScene[] = [
     index: '02',
     phase: 'SCREEN',
     title: 'Review each abstract with context',
-    copy: 'VESTRIPPN3.0 evaluates the full abstract first, then identifies the sentences and terms that explain the screening result.',
+    copy: 'VESTRIPPN evaluates the full abstract first, then identifies the sentences and terms that explain the screening result.',
   },
   {
     index: '03',
@@ -781,7 +782,7 @@ export default function SRMATelemetryPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="pr-24 sm:pr-0 font-mono text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.34em] text-cyan-600 dark:text-cyan-300">
-                  VESTRIPPN3.0
+                  VESTRIPPN
                 </p>
                 <h2 className="mt-2 text-[30px] font-black leading-none tracking-tighter text-neutral-950 dark:text-white sm:text-[44px] lg:text-[50px]">
                   Systematic Review Workflow
@@ -1060,12 +1061,9 @@ export default function SRMATelemetryPage() {
       {/* MINIMALIST HEADER */}
       <header className="intro intro-delay-1 clay-header h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 z-50 transition-colors duration-700">
         <div className="flex items-center gap-4 lg:gap-8">
-          <Link href="/" aria-label="VESTRIPPN3.0 home" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="brand-mark w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">V</div>
-            <div className="flex items-baseline" aria-label="VESTRIPPN3.0">
-              <span>VESTRIPPN</span>
-              <span className="brand-version transition-colors duration-700">3.0</span>
-            </div>
+          <Link href="/" aria-label="VESTRIPPN home" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+            <Image src="/logo.png" alt="VESTRIPPN logo" width={40} height={40} className="w-10 h-10 object-contain" priority />
+            <span>VESTRIPPN</span>
           </Link>
           <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
             <span className="clay-tab clay-tab-active px-3 py-1.5 rounded-lg">Scanner</span>

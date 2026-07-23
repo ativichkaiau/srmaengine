@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ThemeToggle from '@/components/ThemeToggle';
 import MobileTabBar from '@/components/MobileTabBar';
 import {
@@ -408,12 +409,9 @@ export default function ResearchPage() {
       {/* Header */}
       <header className="clay-header h-[64px] lg:h-[72px] flex items-center justify-between px-4 lg:px-8 shrink-0 z-50 transition-colors duration-700">
         <div className="flex items-center gap-4 lg:gap-8">
-          <Link href="/" aria-label="VESTRIPPN3.0 home" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="brand-mark w-8 h-8 rounded-lg flex items-center justify-center text-[15px]">V</div>
-            <div className="flex items-baseline" aria-label="VESTRIPPN3.0">
-              <span>VESTRIPPN</span>
-              <span className="brand-version">3.0</span>
-            </div>
+          <Link href="/" aria-label="VESTRIPPN home" className="font-black text-[18px] lg:text-[20px] tracking-tighter flex items-center gap-2.5 hover:opacity-80 transition-opacity">
+            <Image src="/logo.png" alt="VESTRIPPN logo" width={40} height={40} className="w-10 h-10 object-contain" priority />
+            <span>VESTRIPPN</span>
           </Link>
           <nav className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest">
             <Link href="/" className="clay-tab px-3 py-1.5 rounded-lg">Scanner</Link>

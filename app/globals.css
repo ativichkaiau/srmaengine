@@ -4,7 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   VESTRIPPN3.0 — Clay research workspace
+   VESTRIPPN — Clay research workspace
    Light = dawn observatory (pale pre-dawn sky).
    Dark  = deep night sky.
    Signature: cyan starlight + nebula violet + amber star.
@@ -77,25 +77,6 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-}
-
-.brand-mark {
-  color: #ffffff;
-  background: linear-gradient(145deg, #7ce7d8 0%, #19b9a8 48%, #07877d 100%);
-  border: 1px solid rgba(191, 255, 245, 0.72);
-  box-shadow:
-    6px 7px 16px color-mix(in srgb, var(--clay-shadow) 78%, transparent),
-    inset 2px 2px 4px rgba(255, 255, 255, 0.48),
-    inset -2px -3px 6px rgba(0, 91, 83, 0.34),
-    0 0 18px rgba(45, 212, 191, 0.20);
-}
-
-.brand-version {
-  color: #24c7b2;
-}
-
-:root.dark .brand-version {
-  color: #46dec9;
 }
 
 /* ---------- Depth: raised "orbital" surfaces + inset trays ---------- */
